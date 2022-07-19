@@ -18,9 +18,9 @@ def setup(args):
         attr = args.target_attr
 
     if fname is None:
-        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
+        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_temp_{args.temperature}_seed_{args.seed}'
     else:
-        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_{fname}_seed_{args.seed}'
+        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_temp_{args.temperature}_{fname}_seed_{args.seed}'
 
     args.log_dir = ospj(args.log_dir, fname)
     os.makedirs(args.log_dir, exist_ok=True)
