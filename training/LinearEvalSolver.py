@@ -25,9 +25,9 @@ class LinearEvalSolver(SimCLRSolver):
         super(LinearEvalSolver, self).__init__(args)
         self.writer = SummaryWriter(ospj(args.log_dir, 'linear_eval'))
 
-    def validation(self, fetcher, submunch):
-        submunch.encoder.eval()
-        submunch.classifier.eval()
+    def validation(self, fetcher):
+        self.nets.encoder.eval()
+        self.nets.classifier.eval()
 
         attrwise_acc_meter = MultiDimAverageMeter(self.attr_dims)
 
@@ -39,9 +39,9 @@ class LinearEvalSolver(SimCLRSolver):
             bias = bias.to(self.device)
 
             with torch.no_grad():
-                aux = submunch.encoder(images, penultimate=True)
+                aux = self.nets.encoder(images, penultimate=True)
                 features = aux['penultimate']
-                logit = submunch.classifier(features)
+                logit = self.nets.classifier(features)
                 pred = logit.data.max(1, keepdim=True)[1].squeeze(1)
                 correct = (pred == label).long()
 
@@ -57,8 +57,8 @@ class LinearEvalSolver(SimCLRSolver):
         total_acc = total_correct / float(total_num)
         accs = attrwise_acc_meter.get_mean()
 
-        submunch.encoder.train()
-        submunch.classifier.train()
+        self.nets.encoder.train()
+        self.nets.classifier.train()
         return total_acc, accs
 
     def report_validation(self, valid_attrwise_acc, valid_acc, step=0):
@@ -70,12 +70,72 @@ class LinearEvalSolver(SimCLRSolver):
         for acc, key in zip([valid_acc, valid_acc_align, valid_acc_conflict],
                             ['Acc/total', 'Acc/align', 'Acc/conflict']):
             all_acc[key] = acc
+            self.writer.add_scalar(key, acc, global_step=step)
         log = f"(Validation) Iteration [{step+1}], "
         log += ' '.join(['%s: [%.4f]' % (key, value) for key, value in all_acc.items()])
         logging.info(log)
         print(log)
 
-    def linear_evaluation(self, submunch, token):
+    def save_wrong_idx(self, loader, token='wrong_index.pth'):
+        self.nets.encoder.eval()
+        self.nets.classifier.eval()
+
+        iterator = enumerate(loader)
+        total_wrong, total_num = 0, 0
+        wrong_idx = torch.empty(0).to(self.device)
+        debias_idx = torch.empty(0).to(self.device)
+
+        for _, (images, labels, bias_labels, idx) in iterator:
+            idx = idx.to(self.device)
+            labels = labels.to(self.device)
+            bias_labels = bias_labels.to(self.device)
+            images= images.to(self.device)
+
+            with torch.no_grad():
+                aux = self.nets.encoder(images, freeze=True, penultimate=True)
+                features_penul = aux['penultimate']
+                logits = self.nets.classifier(features_penul)
+
+                pred = logits.data.max(1, keepdim=True)[1].squeeze(1)
+                wrong = (pred != labels).long()
+                debiased = (labels != bias_labels).long()
+
+                total_wrong += wrong.sum()
+                total_num += wrong.shape[0]
+                wrong_idx = torch.cat((wrong_idx, idx[wrong == 1])).long()
+                debias_idx = torch.cat((debias_idx, idx[debiased == 1])).long()
+
+        assert total_wrong == len(wrong_idx)
+        print(f'Number of wrong/total samples: {total_wrong}/{total_num}')
+
+        self.nets.encoder.train()
+        self.nets.classifier.train()
+        self.confirm_pseudo_label(wrong_idx, debias_idx, total_num, token)
+
+    def confirm_pseudo_label(self, wrong_idx, debias_idx, total_num, token):
+        wrong_label = torch.zeros(total_num).to(self.device)
+        debias_label = torch.zeros(total_num).to(self.device)
+
+        for idx in wrong_idx:
+            wrong_label[idx] = 1
+        for idx in debias_idx:
+            debias_label[idx] = 1
+
+        spur_precision = torch.sum(
+                (wrong_label == 1) & (debias_label == 1)
+            ) / torch.sum(wrong_label)
+        print("Spurious precision", spur_precision)
+        spur_recall = torch.sum(
+                (wrong_label == 1) & (debias_label == 1)
+            ) / torch.sum(debias_label)
+        print("Spurious recall", spur_recall)
+
+        wrong_idx_path = ospj(self.args.checkpoint_dir, token)
+
+        torch.save(wrong_label, wrong_idx_path)
+        print(f'Saved wrong index label in {wrong_idx_path}')
+
+    def linear_evaluation(self, loader):
         scaler = GradScaler(enabled=self.args.fp16_precision)
 
         # save config file
@@ -85,38 +145,38 @@ class LinearEvalSolver(SimCLRSolver):
         logging.info(f"Start Linear evaluation for {self.args.linear_epochs} epochs.")
 
         for epoch_counter in range(self.args.linear_epochs):
-            for images, labels, _, _ in tqdm(self.loaders.train_linear):
+            for images, labels, _, _ in tqdm(loader):
 
                 images = images.to(self.args.device)
                 labels = labels.to(self.args.device)
 
                 with autocast(enabled=self.args.fp16_precision):
-                    aux = submunch.encoder(images, freeze=True, penultimate=True)
+                    aux = self.nets.encoder(images, freeze=True, penultimate=True)
                     features_penul = aux['penultimate']
-                    logits = submunch.classifier(features_penul)
+                    logits = self.nets.classifier(features_penul)
                     loss = self.criterion(logits, labels)
 
-                submunch.optimizer.zero_grad()
+                self.optims.classifier.zero_grad()
 
                 scaler.scale(loss).backward()
 
-                scaler.step(submunch.optimizer)
+                scaler.step(self.optims.classifier)
                 scaler.update()
 
                 if n_iter % self.args.log_every_n_steps == 0:
                     top1 = accuracy(logits, labels, topk=(1, ))
                     self.writer.add_scalar('loss', loss, global_step=n_iter)
                     self.writer.add_scalar('acc/top1', top1[0], global_step=n_iter)
-                    self.writer.add_scalar('learning_rate', submunch.scheduler.get_lr()[0], global_step=n_iter)
+                    self.writer.add_scalar('learning_rate', self.scheduler.classifier.get_lr()[0], global_step=n_iter)
 
                 n_iter += 1
 
             # warmup for the first 10 epochs
             if epoch_counter >= 10:
-                submunch.scheduler.step()
+                self.scheduler.classifier.step()
 
             if (epoch_counter+1) % self.args.eval_every == 0:
-                total_acc, valid_attrwise_acc = self.validation(self.loaders.val, submunch)
+                total_acc, valid_attrwise_acc = self.validation(self.loaders.val)
                 self.report_validation(valid_attrwise_acc, total_acc, n_iter+1)
 
             msg = f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}"
@@ -125,7 +185,7 @@ class LinearEvalSolver(SimCLRSolver):
 
         logging.info("Training has finished.")
         # save model checkpoints
-        self._save_checkpoint(step=epoch_counter+1, token=token)
+        self._save_checkpoint(step=epoch_counter+1, token='biased_linear')
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
 
@@ -135,16 +195,17 @@ class LinearEvalSolver(SimCLRSolver):
             print('Pretrained SimCLR ckpt exists. Move onto linear evaluation')
         except:
             print('Start SimCLR pretraining...')
-            self.train_fb()
+            self.contrastive_train()
             print('Finished pretraining. Move onto linear evaluation')
 
-        self.train_cb()
-
-    def train_cb(self):
-        submunch = Munch(encoder=self.nets.fb,
-                         classifier=self.nets.cb,
-                         optimizer=self.optims.cb,
-                         scheduler=self.scheduler.cb)
-        self.linear_evaluation(submunch, 'biased_linear')
-
+        if os.path.exists(ospj(self.args.checkpoint_dir, 'wrong_index.pth')):
+            print('Ours: Linear evaluation with subsampled dataset.')
+            wrong_label = torch.load(ospj(self.args.checkpoint_dir, 'wrong_index.pth'))
+            sampling_weight = 1. - wrong_label
+            balanced_loader = get_original_loader(self.args, sampling_weight=sampling_weight, simclr_aug=False)
+            self.linear_evaluation(balanced_loader)
+            self.save_wrong_idx(self.loaders.train_linear, token='wrong_index2.pth')
+        else:
+            self.linear_evaluation(self.loaders.train_linear)
+            self.save_wrong_idx(self.loaders.train_linear)
 

@@ -124,7 +124,7 @@ class SimCLRSolver(nn.Module):
         assert n == m
         return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
-    def contrastive_train(self, submunch, lambd, token):
+    def contrastive_train(self):
         scaler = GradScaler(enabled=self.args.fp16_precision)
 
         # save config file
@@ -140,7 +140,7 @@ class SimCLRSolver(nn.Module):
                 images = images.to(self.args.device)
 
                 with autocast(enabled=self.args.fp16_precision):
-                    aux = submunch.encoder(images, simclr=True, penultimate=True)
+                    aux = self.nets.encoder(images, simclr=True, penultimate=True)
                     features_simclr = aux['simclr']
                     logits, labels = self.info_nce_loss(features_simclr)
                     loss_nce = self.criterion(logits, labels)
@@ -153,14 +153,14 @@ class SimCLRSolver(nn.Module):
                     loss_offdiag = self.off_diagonal(c).pow_(2).sum() / features_penul.size(1) ** 2
                     # ---------------------------------------------------------
 
-                    loss = loss_nce - lambd * loss_offdiag
+                    loss = loss_nce - self.args.lambda_offdiag * loss_offdiag
 
 
-                submunch.optimizer.zero_grad()
+                self.optims.encoder.zero_grad()
 
                 scaler.scale(loss).backward()
 
-                scaler.step(submunch.optimizer)
+                scaler.step(self.optims.encoder)
                 scaler.update()
 
                 if n_iter % self.args.log_every_n_steps == 0:
@@ -169,32 +169,19 @@ class SimCLRSolver(nn.Module):
                     self.writer.add_scalar('loss_offdiag', loss_offdiag, global_step=n_iter)
                     self.writer.add_scalar('acc/top1', top1[0], global_step=n_iter)
                     self.writer.add_scalar('acc/top5', top5[0], global_step=n_iter)
-                    self.writer.add_scalar('learning_rate', submunch.scheduler.get_lr()[0], global_step=n_iter)
+                    self.writer.add_scalar('learning_rate', self.scheduler.encoder.get_lr()[0], global_step=n_iter)
 
                 n_iter += 1
 
             # warmup for the first 10 epochs
             if epoch_counter >= 10:
-                submunch.scheduler.step()
+                self.scheduler.encoder.step()
             msg = f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}"
             logging.info(msg)
             print(msg)
 
         logging.info("Training has finished.")
         # save model checkpoints
-        self._save_checkpoint(step=epoch_counter+1, token=token)
+        self._save_checkpoint(step=epoch_counter+1, token='biased_simclr')
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
-
-
-    def train_fb(self):
-        submunch = Munch(encoder=self.nets.fb,
-                         optimizer=self.optims.fb,
-                         scheduler=self.scheduler.fb)
-        self.contrastive_train(submunch, self.args.lambda_offdiag, 'biased_simclr')
-
-    def train_fd(self):
-        submunch = Munch(encoder=self.nets.fd,
-                         optimizer=self.optims.fd,
-                         scheduler=self.scheduler.fd)
-        self.contrastive_train(submunch, 0, 'debiased_simclr')

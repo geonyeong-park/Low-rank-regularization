@@ -30,14 +30,14 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
                                    num_workers=args.num_workers,
                                    sampler=sampler,
                                    pin_memory=True,
-                                   drop_last=True)
+                                   drop_last=simclr_aug)
         else:
             return data.DataLoader(dataset=dataset,
                                    batch_size=args.batch_size,
                                    shuffle=True,
                                    num_workers=args.num_workers,
                                    pin_memory=True,
-                                   drop_last=True)
+                                   drop_last=simclr_aug)
 
 def get_val_loader(args, split='valid'):
     dataset_name = args.data

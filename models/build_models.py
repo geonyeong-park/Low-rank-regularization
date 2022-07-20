@@ -31,12 +31,8 @@ class FC(nn.Module):
 def build_model(args):
     n_classes = num_classes[args.data]
     encoder = arch[args.arch](n_classes, args.simclr_dim)
-    biased_encoder = arch[args.arch](n_classes, args.simclr_dim)
-    linear = FC(last_dim[args.arch], n_classes)
-    biased_linear = FC(last_dim[args.arch], n_classes)
+    classifier= FC(last_dim[args.arch], n_classes)
 
-    nets = Munch(fb=biased_encoder,
-                 fd=encoder,
-                 cb=biased_linear,
-                 cd=linear)
+    nets = Munch(encoder=encoder,
+                 classifier=classifier)
     return nets
