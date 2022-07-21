@@ -23,7 +23,7 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
     else:
         if sampling_weight is not None:
             # replacement = False if sampling_weight.sum() > args.batch_size else True
-            sampler = WeightedRandomSampler(sampling_weight, args.batch_size, replacement=False)
+            sampler = WeightedRandomSampler(sampling_weight, args.batch_size, replacement=True)
             return data.DataLoader(dataset=dataset,
                                    batch_size=args.batch_size,
                                    shuffle=False,

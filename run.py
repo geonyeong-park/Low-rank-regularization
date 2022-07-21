@@ -3,6 +3,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from training.SimCLRSolver import SimCLRSolver
 from training.LinearEvalSolver import LinearEvalSolver
+from training.OversampleSolver import OversampleSolver
 from utils import setup
 
 
@@ -15,22 +16,41 @@ def main():
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
 
-    simclr = LinearEvalSolver(args)
-    simclr.train()
+    if args.oversample:
+        solver = OversampleSolver(args)
+
+        if args.phase == 'train':
+            solver.train_with_oversampling()
+        else:
+            solver.evaluate()
+
+    else:
+        solver = LinearEvalSolver(args)
+
+        if args.phase == 'train':
+            solver.train()
+        else:
+            solver.evaluate()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 
-    parser.add_argument('--exp_name', default=None, help='path to dataset')
+    parser.add_argument('--exp_name', default=None, help='additional exp tag. See setup()')
+    parser.add_argument('--oversample', default=False, action='store_true',
+                        help='Oversample failed samples for debiased linear evaluation')
+    parser.add_argument('--oversample_pth', default=None, help='denoting which samples to be oversampled', type=str)
+    parser.add_argument('--phase', default='train', choices=['train', 'test'], type=str)
 
-    # model
+    # data
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
                         help='path to dataset')
     parser.add_argument('--data', default='UTKFace',
                         help='dataset name', choices=['UTKFace', 'celebA'])
-    parser.add_argument('--bias_attr', default='race', type=str)
-    parser.add_argument('--target_attr', default='blonde', type=str)
+    parser.add_argument('--bias_attr', default='race', choices=['race', 'age'],
+                        type=str, help='For UTKFace')
+    parser.add_argument('--target_attr', default='blonde', choices=['blonde', 'makeup'],
+                        type=str, help='For celebA')
 
     # arch
     parser.add_argument('--arch', default='resnet18',
@@ -54,7 +74,8 @@ if __name__ == "__main__":
                         metavar='W', help='weight decay (default: 1e-4)',
                         dest='weight_decay')
     parser.add_argument('--lr_simclr', '--learning-rate', default=0.0003, type=float)
-    parser.add_argument('--lambda_offdiag', default=0.1, type=float)
+    parser.add_argument('--lambda_offdiag', default=0.1, type=float, help='rank regularization')
+    parser.add_argument('--lambda_upweight', default=20, type=float, help='oversampling bias-free samples')
     parser.add_argument('--optimizer', default='Adam', choices=['Adam', 'SGD'], type=str)
 
     # misc

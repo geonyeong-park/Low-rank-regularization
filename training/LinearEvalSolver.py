@@ -1,21 +1,13 @@
 import os
 from os.path import join as ospj
-import time
-import datetime
-from munch import Munch
 import logging
-import sys
 
-import torchvision
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from utils import save_config_file, accuracy, CheckpointIO, MultiDimAverageMeter
 
-from models.build_models import build_model, num_classes, last_dim
 from data_aug.data_loader import get_original_loader, get_val_loader, InputFetcher
 from training.SimCLRSolver import SimCLRSolver
 
@@ -135,7 +127,7 @@ class LinearEvalSolver(SimCLRSolver):
         torch.save(wrong_label, wrong_idx_path)
         print(f'Saved wrong index label in {wrong_idx_path}')
 
-    def linear_evaluation(self, loader):
+    def linear_evaluation(self, loader, token='biased_linear'):
         scaler = GradScaler(enabled=self.args.fp16_precision)
 
         # save config file
@@ -145,8 +137,7 @@ class LinearEvalSolver(SimCLRSolver):
         logging.info(f"Start Linear evaluation for {self.args.linear_epochs} epochs.")
 
         for epoch_counter in range(self.args.linear_epochs):
-            for images, labels, _, _ in tqdm(loader):
-
+            for images, labels, _, idx in tqdm(loader):
                 images = images.to(self.args.device)
                 labels = labels.to(self.args.device)
 
@@ -185,7 +176,7 @@ class LinearEvalSolver(SimCLRSolver):
 
         logging.info("Training has finished.")
         # save model checkpoints
-        self._save_checkpoint(step=epoch_counter+1, token='biased_linear')
+        self._save_checkpoint(step=epoch_counter+1, token=token)
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
 
@@ -209,3 +200,8 @@ class LinearEvalSolver(SimCLRSolver):
             self.linear_evaluation(self.loaders.train_linear)
             self.save_wrong_idx(self.loaders.train_linear)
 
+    def evaluate(self):
+        fetcher_val = self.loaders.test
+        self._load_checkpoint(self.args.linear_epochs, 'biased_linear')
+        total_acc, valid_attrwise_acc = self.validation(fetcher_val)
+        self.report_validation(valid_attrwise_acc, total_acc, 0)
