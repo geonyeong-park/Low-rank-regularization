@@ -49,7 +49,7 @@ class SimCLRSolver(nn.Module):
                 )
 
         self.ckptios = [
-            CheckpointIO(ospj(args.checkpoint_dir, '{:03d}_{}_nets.ckpt'), **self.nets),
+            CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_{}_nets.ckpt'), **self.nets),
         ]
         logging.basicConfig(filename=os.path.join(args.log_dir, 'training.log'),
                             level=logging.INFO)
@@ -174,7 +174,7 @@ class SimCLRSolver(nn.Module):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= 10:
+            if epoch_counter >= self.args.lr_decay_offset:
                 self.scheduler.encoder.step()
             msg = f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}"
             logging.info(msg)

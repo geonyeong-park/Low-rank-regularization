@@ -70,9 +70,12 @@ class InputFetcher:
             x, target, bias, index = next(self.iter) # attr: (class_label, bias_label)
         return x, target, bias, index
 
+    def __len__(self):
+        return len(self.loader)
+
     def __next__(self):
         x, y, bias_label, index = self._fetch()
-        inputs = Munch(index=index, x=x, y=y, bias_label=bias_label)
+        inputs = Munch(index=index, images=x, labels=y, bias_label=bias_label)
 
         return Munch({k: v.to(self.device) for k, v in inputs.items()})
 

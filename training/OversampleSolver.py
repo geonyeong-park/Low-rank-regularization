@@ -27,8 +27,8 @@ class OversampleSolver(LinearEvalSolver):
         except:
             print('WARNING: Either pretrained model or wrong_index.pth does not exists')
             self.train()
-            print('Now you have both pretrained model and wrong_index.pth. \
-                  Run this code again.')
+            print('Now you have both pretrained model and wrong_index.pth. ' \
+                  'Run this code again.')
             return
 
         wrong_label = torch.load(pth)
@@ -36,11 +36,12 @@ class OversampleSolver(LinearEvalSolver):
         upweight = torch.ones_like(wrong_label)
         upweight[wrong_label == 1] = self.args.lambda_upweight
         upweight_loader = get_original_loader(self.args, sampling_weight=upweight, simclr_aug=False)
+        upweight_fetcher = InputFetcher(upweight_loader)
 
-        self.linear_evaluation(upweight_loader, token='debiased_linear')
+        self.linear_evaluation(upweight_fetcher, token='debiased_linear')
 
     def evaluate(self):
         fetcher_val = self.loaders.test
-        self._load_checkpoint(self.args.linear_epochs, 'debiased_linear')
+        self._load_checkpoint(self.args.linear_iters, 'debiased_linear')
         total_acc, valid_attrwise_acc = self.validation(fetcher_val)
         self.report_validation(valid_attrwise_acc, total_acc, 0)

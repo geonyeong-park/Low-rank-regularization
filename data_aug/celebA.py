@@ -20,7 +20,7 @@ class BiasedCelebASplit:
             split="train" if split == "valid" else split,
             target_type="attr",
             transform=transform,
-            download=False
+            download=True
         )
         self.bias_idx = 20 # Gender
 

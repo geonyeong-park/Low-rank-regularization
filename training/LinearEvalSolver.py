@@ -63,7 +63,7 @@ class LinearEvalSolver(SimCLRSolver):
                             ['Acc/total', 'Acc/align', 'Acc/conflict']):
             all_acc[key] = acc
             self.writer.add_scalar(key, acc, global_step=step)
-        log = f"(Validation) Iteration [{step+1}], "
+        log = f"(Validation) Iteration [{step}], "
         log += ' '.join(['%s: [%.4f]' % (key, value) for key, value in all_acc.items()])
         logging.info(log)
         print(log)
@@ -133,50 +133,45 @@ class LinearEvalSolver(SimCLRSolver):
         # save config file
         save_config_file(self.args.log_dir, self.args)
 
-        n_iter = 0
-        logging.info(f"Start Linear evaluation for {self.args.linear_epochs} epochs.")
+        logging.info(f"Start Linear evaluation for {self.args.linear_iters} iterations.")
 
-        for epoch_counter in range(self.args.linear_epochs):
-            for images, labels, _, idx in tqdm(loader):
-                images = images.to(self.args.device)
-                labels = labels.to(self.args.device)
+        for iter_counter in range(self.args.linear_iters):
+            inputs = next(loader)
+            images, labels = inputs.images, inputs.labels
 
-                with autocast(enabled=self.args.fp16_precision):
-                    aux = self.nets.encoder(images, freeze=True, penultimate=True)
-                    features_penul = aux['penultimate']
-                    logits = self.nets.classifier(features_penul)
-                    loss = self.criterion(logits, labels)
+            with autocast(enabled=self.args.fp16_precision):
+                aux = self.nets.encoder(images, freeze=True, penultimate=True)
+                features_penul = aux['penultimate']
+                logits = self.nets.classifier(features_penul)
+                loss = self.criterion(logits, labels)
 
-                self.optims.classifier.zero_grad()
+            self.optims.classifier.zero_grad()
 
-                scaler.scale(loss).backward()
+            scaler.scale(loss).backward()
 
-                scaler.step(self.optims.classifier)
-                scaler.update()
+            scaler.step(self.optims.classifier)
+            scaler.update()
 
-                if n_iter % self.args.log_every_n_steps == 0:
-                    top1 = accuracy(logits, labels, topk=(1, ))
-                    self.writer.add_scalar('loss', loss, global_step=n_iter)
-                    self.writer.add_scalar('acc/top1', top1[0], global_step=n_iter)
-                    self.writer.add_scalar('learning_rate', self.scheduler.classifier.get_lr()[0], global_step=n_iter)
-
-                n_iter += 1
+            if (iter_counter + 1) % self.args.log_every_n_steps == 0:
+                top1 = accuracy(logits, labels, topk=(1, ))
+                self.writer.add_scalar('loss', loss, global_step=iter_counter+1)
+                self.writer.add_scalar('acc/top1', top1[0], global_step=iter_counter+1)
+                self.writer.add_scalar('learning_rate', self.scheduler.classifier.get_lr()[0], global_step=iter_counter+1)
 
             # warmup for the first 10 epochs
-            if epoch_counter >= 10:
+            if (iter_counter+1) / len(loader) >= self.args.lr_decay_offset and (iter_counter+1) % len(loader) == 0:
                 self.scheduler.classifier.step()
 
-            if (epoch_counter+1) % self.args.eval_every == 0:
+            if (iter_counter+1) % self.args.eval_every == 0:
                 total_acc, valid_attrwise_acc = self.validation(self.loaders.val)
-                self.report_validation(valid_attrwise_acc, total_acc, n_iter+1)
-
-            msg = f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}"
-            logging.info(msg)
-            print(msg)
+                self.report_validation(valid_attrwise_acc, total_acc, iter_counter+1)
+                msg = f"Iter: {iter_counter+1}\tLoss: {loss}\tAccuracy: {total_acc}"
+                logging.info(msg)
+                print(msg)
 
         logging.info("Training has finished.")
         # save model checkpoints
-        self._save_checkpoint(step=epoch_counter+1, token=token)
+        self._save_checkpoint(step=iter_counter+1, token=token)
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
 
@@ -194,14 +189,16 @@ class LinearEvalSolver(SimCLRSolver):
             wrong_label = torch.load(ospj(self.args.checkpoint_dir, 'wrong_index.pth'))
             sampling_weight = 1. - wrong_label
             balanced_loader = get_original_loader(self.args, sampling_weight=sampling_weight, simclr_aug=False)
-            self.linear_evaluation(balanced_loader)
+            balanced_fetcher = InputFetcher(balanced_loader)
+            self.linear_evaluation(balanced_fetcher)
             self.save_wrong_idx(self.loaders.train_linear, token='wrong_index2.pth')
         else:
-            self.linear_evaluation(self.loaders.train_linear)
+            fetcher = InputFetcher(self.loaders.train_linear)
+            self.linear_evaluation(fetcher)
             self.save_wrong_idx(self.loaders.train_linear)
 
     def evaluate(self):
         fetcher_val = self.loaders.test
-        self._load_checkpoint(self.args.linear_epochs, 'biased_linear')
+        self._load_checkpoint(self.args.linear_iters, 'biased_linear')
         total_acc, valid_attrwise_acc = self.validation(fetcher_val)
         self.report_validation(valid_attrwise_acc, total_acc, 0)

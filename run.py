@@ -63,8 +63,8 @@ if __name__ == "__main__":
                         help='softmax temperature (default: 0.07)')
     parser.add_argument('--simclr_epochs', default=100, type=int, metavar='N',
                         help='number of simclr pretraining epochs to run')
-    parser.add_argument('--linear_epochs', default=30, type=int, metavar='N',
-                        help='number of linear evaluation epochs to run')
+    parser.add_argument('--linear_iters', default=1000, type=int, metavar='N',
+                        help='number of linear evaluation iterations to run')
     parser.add_argument('--batch_size', default=256, type=int,
                         metavar='N',
                         help='mini-batch size (default: 256), this is the total '
@@ -74,6 +74,7 @@ if __name__ == "__main__":
                         metavar='W', help='weight decay (default: 1e-4)',
                         dest='weight_decay')
     parser.add_argument('--lr_simclr', '--learning-rate', default=0.0003, type=float)
+    parser.add_argument('--lr_decay_offset', default=10, type=int)
     parser.add_argument('--lambda_offdiag', default=0.1, type=float, help='rank regularization')
     parser.add_argument('--lambda_upweight', default=20, type=float, help='oversampling bias-free samples')
     parser.add_argument('--optimizer', default='Adam', choices=['Adam', 'SGD'], type=str)
@@ -88,8 +89,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--log-every-n-steps', default=100, type=int,
                         help='Log every n steps')
-    parser.add_argument('--eval_every', default=5, type=int,
-                        help='Evaluate every n epochs')
+    parser.add_argument('--eval_every', default=100, type=int,
+                        help='Evaluate every n iters')
     parser.add_argument('--n-views', default=2, type=int, metavar='N',
                         help='Number of views for contrastive learning training.')
     parser.add_argument('--gpu-index', default=0, type=int, help='Gpu index.')
