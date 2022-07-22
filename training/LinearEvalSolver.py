@@ -156,11 +156,11 @@ class LinearEvalSolver(SimCLRSolver):
                 top1 = accuracy(logits, labels, topk=(1, ))
                 self.writer.add_scalar('loss', loss, global_step=iter_counter+1)
                 self.writer.add_scalar('acc/top1', top1[0], global_step=iter_counter+1)
-                self.writer.add_scalar('learning_rate', self.scheduler.classifier.get_lr()[0], global_step=iter_counter+1)
+                #self.writer.add_scalar('learning_rate', self.scheduler.classifier.get_lr()[0], global_step=iter_counter+1)
 
             # warmup for the first 10 epochs
-            if (iter_counter+1) / len(loader) >= self.args.lr_decay_offset and (iter_counter+1) % len(loader) == 0:
-                self.scheduler.classifier.step()
+            #if (iter_counter+1) / len(loader) >= self.args.lr_decay_offset:
+            #    self.scheduler.classifier.step()
 
             if (iter_counter+1) % self.args.eval_every == 0:
                 total_acc, valid_attrwise_acc = self.validation(self.loaders.val)
