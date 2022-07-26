@@ -5,6 +5,7 @@ from torch.utils import data
 from munch import Munch
 from data_aug.utkface import get_utk_face
 from data_aug.celebA import get_celeba
+from data_aug.bffhq import get_bFFHQ
 
 
 def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr_aug=True):
@@ -15,6 +16,8 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
     elif dataset_name == 'celebA':
         dataset = get_celeba(args.data_dir, target_attr=args.target_attr, split='train',
                              simclr_aug=simclr_aug, img_size=224)
+    elif dataset_name == 'bffhq':
+        dataset = get_bFFHQ(args.data_dir, split='train', simclr_aug=simclr_aug)
     else:
         raise ValueError
 
@@ -47,6 +50,8 @@ def get_val_loader(args, split='valid'):
     elif dataset_name == 'celebA':
         dataset = get_celeba(args.data_dir, target_attr=args.target_attr, split=split,
                              simclr_aug=False, img_size=224)
+    elif dataset_name == 'bffhq':
+        dataset = get_bFFHQ(args.data_dir, split=split, simclr_aug=False)
     else:
         raise ValueError
 

@@ -43,8 +43,8 @@ class LinearEvalSolver(SimCLRSolver):
             attr = torch.cat((labels.view(-1,1).to(self.device), bias.view(-1,1).to(self.device)), dim=1)
             attrwise_acc_meter.add(correct.cpu(), attr.cpu())
 
-        #print(attrwise_acc_meter.cum.view(self.attr_dims[0], -1))
-        #print(attrwise_acc_meter.cnt.view(self.attr_dims[0], -1))
+        print(attrwise_acc_meter.cum.view(self.attr_dims[0], -1))
+        print(attrwise_acc_meter.cnt.view(self.attr_dims[0], -1))
 
         total_acc = total_correct / float(total_num)
         accs = attrwise_acc_meter.get_mean()

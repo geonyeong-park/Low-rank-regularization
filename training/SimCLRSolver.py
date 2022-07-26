@@ -34,16 +34,21 @@ class SimCLRSolver(nn.Module):
 
         self.optims = Munch() # Used in pretraining
         for net in self.nets.keys():
+            if net == 'encoder':
+                lr = args.lr_simclr
+            elif net == 'classifier':
+                lr = args.lr_clf
+
             if args.optimizer == 'Adam':
                 self.optims[net] = torch.optim.Adam(
                     self.nets[net].parameters(),
-                    args.lr_simclr,
+                    lr,
                     weight_decay=args.weight_decay
                 )
             elif args.optimizer == 'SGD':
                 self.optims[net] = torch.optim.SGD(
                     self.nets[net].parameters(),
-                    lr=args.lr_simclr,
+                    lr,
                     momentum=0.9,
                     weight_decay=args.weight_decay
                 )
@@ -173,7 +178,7 @@ class SimCLRSolver(nn.Module):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= self.args.lr_decay_offset:
+            if epoch_counter >= int(0.1 * self.args.simclr_epochs):
                 self.scheduler.encoder.step()
             msg = f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}"
             logging.info(msg)

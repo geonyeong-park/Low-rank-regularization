@@ -46,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
                         help='path to dataset')
     parser.add_argument('--data', default='UTKFace',
-                        help='dataset name', choices=['UTKFace', 'celebA'])
+                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq'])
     parser.add_argument('--bias_attr', default='race', choices=['race', 'age'],
                         type=str, help='For UTKFace')
     parser.add_argument('--target_attr', default='blonde', choices=['blonde', 'makeup'],
@@ -73,7 +73,8 @@ if __name__ == "__main__":
     parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)',
                         dest='weight_decay')
-    parser.add_argument('--lr_simclr', '--learning-rate', default=0.0003, type=float)
+    parser.add_argument('--lr_simclr', default=0.0003, type=float)
+    parser.add_argument('--lr_clf', default=0.0003, type=float)
     parser.add_argument('--lr_decay_offset', default=10, type=int)
     parser.add_argument('--lambda_offdiag', default=0.1, type=float, help='rank regularization')
     parser.add_argument('--lambda_upweight', default=20, type=float, help='oversampling bias-free samples')
