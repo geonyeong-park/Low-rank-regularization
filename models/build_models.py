@@ -5,7 +5,8 @@ from models.resnet_simclr import ResNet18, ResNet50
 
 num_classes = {
     'celebA': 2,
-    'UTKFace': 2
+    'UTKFace': 2,
+    'bffhq': 2
 }
 
 arch = {

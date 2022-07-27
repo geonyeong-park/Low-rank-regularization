@@ -178,8 +178,8 @@ class SimCLRSolver(nn.Module):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= int(0.1 * self.args.simclr_epochs):
-                self.scheduler.encoder.step()
+            #if epoch_counter >= int(0.1 * self.args.simclr_epochs):
+            #    self.scheduler.encoder.step()
             msg = f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}"
             logging.info(msg)
             print(msg)

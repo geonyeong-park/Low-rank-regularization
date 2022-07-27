@@ -23,8 +23,8 @@ class bFFHQDataset(Dataset):
 
             self.data = self.align + self.conflict
 
-        elif split=='test':
-            self.data = glob(os.path.join(root, 'test', "*"))
+        elif split=='test' or split=='valid':
+            self.data = glob(os.path.join(root, split, "*"))
 
     def __len__(self):
         return len(self.data)

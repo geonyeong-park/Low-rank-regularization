@@ -16,13 +16,13 @@ def setup(args):
         attr = args.bias_attr
     elif args.data == 'celebA':
         attr = args.target_attr
-    elif args.data == 'bFFHQ':
+    elif args.data == 'bffhq':
         attr = ''
 
     if fname is None:
-        fname = f'{args.data}_{attr}_epoch_{args.simclr_epochs}_lr_{args.lr_simclr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
+        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
     else:
-        fname = f'{args.data}_{attr}_epoch_{args.simclr_epochs}_lr_{args.lr_simclr}_lambda_{args.lambda_offdiag}_{fname}_seed_{args.seed}'
+        fname = f'{args.data}_{attr}_{fname}_seed_{args.seed}'
 
     args.log_dir = ospj(args.log_dir, fname)
     os.makedirs(args.log_dir, exist_ok=True)
