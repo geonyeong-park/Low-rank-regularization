@@ -1,6 +1,7 @@
 from torch.utils.tensorboard import SummaryWriter
 from os.path import join as ospj
 import os
+import logging
 
 import torch
 from data_aug.data_loader import get_original_loader, get_val_loader, InputFetcher
@@ -12,8 +13,46 @@ class OversampleSolver(LinearEvalSolver):
         super(OversampleSolver, self).__init__(args)
         self.writer = SummaryWriter(ospj(args.log_dir, 'debiased_eval'))
 
+    def make_pseudo_label(self):
+        score_file_name = lambda ld: ospj(self.args.score_file_template(ld), 'score_index.pth')
+        score_file = score_file_name(0.) # It must exists
+        score = torch.load(score_file)
+
+        for ld in self.args.lambda_list:
+            if ld == 0.:
+                continue
+            else:
+                new_score = torch.load(score_file_name(ld))
+                score += new_score
+        score /= len(self.args.lambda_list)
+        pseudo_label = (score > self.args.cutoff).float()
+
+        wrong_idx_path = ospj(self.args.checkpoint_dir, 'wrong_index.pth')
+        torch.save(pseudo_label, wrong_idx_path)
+
+        debias_idx_path = ospj(self.args.checkpoint_dir, 'debias_idx.pth')
+        debias_label = torch.load(debias_idx_path)
+
+        self.pseudo_label_precision_recall(pseudo_label, debias_label)
+
     def train_with_oversampling(self):
-        if self.args.oversample_pth is not None:
+        """
+        EpochEnsemble
+        1. For each lambda_offdiag, load bias-score file
+        2. Take average of score files, and make a pseudo bias label
+        3. Run debiased linear evaluation
+        """
+
+        assert self.args.lambda_offdiag == 0 # Assert the main encoder is pretrained w/o rank regularization
+
+        final_index_pth = ospj(self.args.checkpoint_dir, 'wrong_index.pth')
+        if os.path.exists(final_index_pth):
+            print('Bias label exists. Move onto linear evaluation')
+        else:
+            self.make_pseudo_label()
+            print('Saved pseudo bias label')
+
+        if self.args.oversample_pth is not None: # Only for manual pseudo_label experiments
             pth = self.args.oversample_pth
             if not os.path.exists(pth):
                 raise ValueError(f'{pth} does not exists')
@@ -25,11 +64,7 @@ class OversampleSolver(LinearEvalSolver):
             assert os.path.exists(pth)
             print('Pretrained SimCLR ckpt exists. Move onto linear evaluation')
         except:
-            print('WARNING: Either pretrained model or wrong_index.pth does not exists')
-            self.train()
-            print('Now you have both pretrained model and wrong_index.pth. ' \
-                  'Run this code again.')
-            return
+            raise ValueError('Either pretrained SimCLR or pseudo bias label does not exist')
 
         wrong_label = torch.load(pth)
         print(f'Number of wrong/total samples: {wrong_label.sum()}/{wrong_label.size(0)}')

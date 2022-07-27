@@ -3,6 +3,7 @@ from os.path import join as ospj
 import logging
 
 import torch
+import torch.nn as nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -68,14 +69,17 @@ class LinearEvalSolver(SimCLRSolver):
         logging.info(log)
         print(log)
 
-    def save_wrong_idx(self, loader, token='wrong_index.pth'):
+    def save_score_idx(self, loader):
         self.nets.encoder.eval()
         self.nets.classifier.eval()
+        dataset = get_original_loader(self.args, return_dataset=True)
+        num_data = len(dataset)
 
         iterator = enumerate(loader)
-        total_wrong, total_num = 0, 0
-        wrong_idx = torch.empty(0).to(self.device)
-        debias_idx = torch.empty(0).to(self.device)
+        score_idx = torch.zeros(num_data).to(self.device)
+        wrong_idx = torch.zeros(num_data).to(self.device) # only for sanity check
+        debias_idx = torch.zeros(num_data).to(self.device)
+        total_num = 0
 
         for _, (images, labels, bias_labels, idx) in iterator:
             idx = idx.to(self.device)
@@ -88,44 +92,50 @@ class LinearEvalSolver(SimCLRSolver):
                 features_penul = aux['penultimate']
                 logits = self.nets.classifier(features_penul)
 
+                # bias score
+                bias_prob = nn.Softmax()(logits)[torch.arange(logits.size(0)), labels]
+                bias_score = 1 - bias_prob
+
+                # wrong
                 pred = logits.data.max(1, keepdim=True)[1].squeeze(1)
                 wrong = (pred != labels).long()
-                debiased = (labels != bias_labels).long()
 
-                total_wrong += wrong.sum()
-                total_num += wrong.shape[0]
-                wrong_idx = torch.cat((wrong_idx, idx[wrong == 1])).long()
-                debias_idx = torch.cat((debias_idx, idx[debiased == 1])).long()
+                # true label
+                debiased = (labels != bias_labels).float()
 
-        assert total_wrong == len(wrong_idx)
-        print(f'Number of wrong/total samples: {total_wrong}/{total_num}')
+                for i, v in enumerate(idx):
+                    score_idx[v] = bias_score[i]
+                    debias_idx[v] = debiased[i]
+                    wrong_idx[v] = wrong[i]
+
+            total_num += labels.shape[0]
+
+        assert total_num == len(score_idx)
+        print(f'Average bias score: {score_idx.mean()}')
 
         self.nets.encoder.train()
         self.nets.classifier.train()
-        self.confirm_pseudo_label(wrong_idx, debias_idx, total_num, token)
+        score_idx_path = ospj(self.args.checkpoint_dir, 'score_idx.pth')
+        debias_idx_path = ospj(self.args.checkpoint_dir, 'debias_idx.pth')
+        torch.save(score_idx, score_idx_path)
+        torch.save(debias_idx, debias_idx_path)
+        print(f'Saved bias score in {score_idx_path}')
+        self.pseudo_label_precision_recall(wrong_idx, debias_idx)
 
-    def confirm_pseudo_label(self, wrong_idx, debias_idx, total_num, token):
-        wrong_label = torch.zeros(total_num).to(self.device)
-        debias_label = torch.zeros(total_num).to(self.device)
-
-        for idx in wrong_idx:
-            wrong_label[idx] = 1
-        for idx in debias_idx:
-            debias_label[idx] = 1
-
+    def pseudo_label_precision_recall(self, wrong_label, debias_label):
         spur_precision = torch.sum(
                 (wrong_label == 1) & (debias_label == 1)
             ) / torch.sum(wrong_label)
-        print("Spurious precision", spur_precision)
+        premsg = f"Spurious precision: {spur_precision}"
+        print(premsg)
+        logging.info(premsg)
+
         spur_recall = torch.sum(
                 (wrong_label == 1) & (debias_label == 1)
             ) / torch.sum(debias_label)
-        print("Spurious recall", spur_recall)
-
-        wrong_idx_path = ospj(self.args.checkpoint_dir, token)
-
-        torch.save(wrong_label, wrong_idx_path)
-        print(f'Saved wrong index label in {wrong_idx_path}')
+        recmsg = f"Spurious recall: {spur_recall}"
+        print(recmsg)
+        logging.info(recmsg)
 
     def linear_evaluation(self, loader, token='biased_linear'):
         scaler = GradScaler(enabled=self.args.fp16_precision)
@@ -184,18 +194,9 @@ class LinearEvalSolver(SimCLRSolver):
             self.contrastive_train()
             print('Finished pretraining. Move onto linear evaluation')
 
-        if os.path.exists(ospj(self.args.checkpoint_dir, 'wrong_index.pth')):
-            print('Ours: Linear evaluation with subsampled dataset.')
-            wrong_label = torch.load(ospj(self.args.checkpoint_dir, 'wrong_index.pth'))
-            sampling_weight = 1. - wrong_label
-            balanced_loader = get_original_loader(self.args, sampling_weight=sampling_weight, simclr_aug=False)
-            balanced_fetcher = InputFetcher(balanced_loader)
-            self.linear_evaluation(balanced_fetcher)
-            self.save_wrong_idx(self.loaders.train_linear, token='wrong_index2.pth')
-        else:
-            fetcher = InputFetcher(self.loaders.train_linear)
-            self.linear_evaluation(fetcher)
-            self.save_wrong_idx(self.loaders.train_linear)
+        fetcher = InputFetcher(self.loaders.train_linear)
+        self.linear_evaluation(fetcher)
+        self.save_score_idx(self.loaders.train_linear)
 
     def evaluate(self):
         fetcher_val = self.loaders.test

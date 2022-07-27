@@ -36,7 +36,9 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 
-    parser.add_argument('--exp_name', default=None, help='additional exp tag. See setup()')
+    #parser.add_argument('--exp_name', default=None, help='additional exp tag. See setup()')
+
+
     parser.add_argument('--oversample', default=False, action='store_true',
                         help='Oversample failed samples for debiased linear evaluation')
     parser.add_argument('--oversample_pth', default=None, help='denoting which samples to be oversampled', type=str)
@@ -78,6 +80,10 @@ if __name__ == "__main__":
     parser.add_argument('--lr_decay_offset', default=10, type=int)
     parser.add_argument('--lambda_offdiag', default=0.1, type=float, help='rank regularization')
     parser.add_argument('--lambda_upweight', default=20, type=float, help='oversampling bias-free samples')
+    parser.add_argument('--lambda_list', default=None, nargs='+', type=int,
+                        help='Lambda_offdiags for ensemble trick')
+    parser.add_argument('--cutoff', default=0.75, type=float,
+                        help='Threshold for pseudo bias label')
     parser.add_argument('--optimizer', default='Adam', choices=['Adam', 'SGD'], type=str)
 
     # misc
@@ -90,7 +96,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--log-every-n-steps', default=100, type=int,
                         help='Log every n steps')
-    parser.add_argument('--eval_every', default=100, type=int,
+    parser.add_argument('--eval_every', default=300, type=int,
                         help='Evaluate every n iters')
     parser.add_argument('--n-views', default=2, type=int, metavar='N',
                         help='Number of views for contrastive learning training.')

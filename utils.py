@@ -11,7 +11,6 @@ import json
 def setup(args):
     args.data_dir = ospj(args.data_dir, args.data)
 
-    fname = args.exp_name
     if args.data == 'UTKFace':
         attr = args.bias_attr
     elif args.data == 'celebA':
@@ -19,16 +18,16 @@ def setup(args):
     elif args.data == 'bffhq':
         attr = ''
 
-    if fname is None:
-        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
-    else:
-        fname = f'{args.data}_{attr}_{fname}_seed_{args.seed}'
+    fname_template = lambda ld: f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}'
+    fname = fname_template(args.lambda_offdiag)
 
     args.log_dir = ospj(args.log_dir, fname)
     os.makedirs(args.log_dir, exist_ok=True)
 
     args.checkpoint_dir = ospj(args.checkpoint_dir, fname)
     os.makedirs(args.checkpoint_dir, exist_ok=True)
+
+    args.score_file_template = fname_template
 
     return args
 
