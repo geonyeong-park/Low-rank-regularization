@@ -18,8 +18,9 @@ def setup(args):
     elif args.data == 'bffhq':
         attr = ''
 
-    fname_template = lambda ld: f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}'
-    fname = fname_template(args.lambda_offdiag)
+    ckpt_tmp = args.checkpoint_dir
+    fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}')
+    fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
 
     args.log_dir = ospj(args.log_dir, fname)
     os.makedirs(args.log_dir, exist_ok=True)

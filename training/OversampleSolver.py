@@ -14,7 +14,7 @@ class OversampleSolver(LinearEvalSolver):
         self.writer = SummaryWriter(ospj(args.log_dir, 'debiased_eval'))
 
     def make_pseudo_label(self):
-        score_file_name = lambda ld: ospj(self.args.score_file_template(ld), 'score_index.pth')
+        score_file_name = lambda ld: ospj(self.args.score_file_template(ld), 'score_idx.pth')
         score_file = score_file_name(0.) # It must exists
         score = torch.load(score_file)
 
