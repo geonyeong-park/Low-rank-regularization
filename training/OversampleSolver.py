@@ -27,7 +27,7 @@ class OversampleSolver(LinearEvalSolver):
         score /= len(self.args.lambda_list)
         pseudo_label = (score > self.args.cutoff).float()
 
-        wrong_idx_path = ospj(self.args.checkpoint_dir, 'wrong_index.pth')
+        wrong_idx_path = ospj(self.args.checkpoint_dir, 'wrong_index_final.pth')
         torch.save(pseudo_label, wrong_idx_path)
 
         debias_idx_path = ospj(self.args.checkpoint_dir, 'debias_idx.pth')
@@ -45,19 +45,19 @@ class OversampleSolver(LinearEvalSolver):
 
         assert self.args.lambda_offdiag == 0 # Assert the main encoder is pretrained w/o rank regularization
 
-        final_index_pth = ospj(self.args.checkpoint_dir, 'wrong_index.pth')
-        if os.path.exists(final_index_pth):
-            print('Bias label exists. Move onto linear evaluation')
-        else:
-            self.make_pseudo_label()
-            print('Saved pseudo bias label')
-
         if self.args.oversample_pth is not None: # Only for manual pseudo_label experiments
             pth = self.args.oversample_pth
             if not os.path.exists(pth):
                 raise ValueError(f'{pth} does not exists')
         else:
-            pth = ospj(self.args.checkpoint_dir, 'wrong_index.pth')
+            final_index_pth = ospj(self.args.checkpoint_dir, 'wrong_index_final.pth')
+            if os.path.exists(final_index_pth):
+                print('Bias label exists. Move onto linear evaluation')
+            else:
+                self.make_pseudo_label()
+                print('Saved pseudo bias label')
+
+            pth = ospj(self.args.checkpoint_dir, 'wrong_index_final.pth') # Ours (with ensemble trick)
 
         try:
             self._load_checkpoint(self.args.simclr_epochs, 'biased_simclr')

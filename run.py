@@ -79,7 +79,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr_clf', default=0.0003, type=float)
     parser.add_argument('--lr_decay_offset', default=10, type=int)
     parser.add_argument('--lambda_offdiag', default=0.1, type=float, help='rank regularization')
-    parser.add_argument('--lambda_upweight', default=20, type=float, help='oversampling bias-free samples')
+    parser.add_argument('--lambda_upweight', default=5, type=float, help='oversampling bias-free samples')
     parser.add_argument('--lambda_list', default=None, nargs='+', type=float,
                         help='Lambda_offdiags for ensemble trick')
     parser.add_argument('--cutoff', default=0.75, type=float,
