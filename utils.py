@@ -18,17 +18,20 @@ def setup(args):
     elif args.data == 'bffhq':
         attr = ''
 
-    ckpt_tmp = args.checkpoint_dir
-    fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}')
-    fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
+    if args.mode != 'ERM':
+        ckpt_tmp = args.checkpoint_dir
+        fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}')
+        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
+        args.score_file_template = fname_template
+    else:
+        fname = f'{args.data}_{attr}_ERM_seed_{args.seed}'
 
     args.log_dir = ospj(args.log_dir, fname)
     os.makedirs(args.log_dir, exist_ok=True)
 
     args.checkpoint_dir = ospj(args.checkpoint_dir, fname)
     os.makedirs(args.checkpoint_dir, exist_ok=True)
-
-    args.score_file_template = fname_template
+    save_config_file(args.log_dir, args)
 
     return args
 

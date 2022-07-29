@@ -184,6 +184,9 @@ class SimCLRSolver(nn.Module):
             logging.info(msg)
             print(msg)
 
+            if (epoch_counter + 1) % self.args.eval_every == 0:
+                self._save_checkpoint(step=epoch_counter+1, token='biased_simclr')
+
         logging.info("Training has finished.")
         # save model checkpoints
         self._save_checkpoint(step=epoch_counter+1, token='biased_simclr')

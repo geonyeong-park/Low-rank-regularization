@@ -4,6 +4,7 @@ import torch.backends.cudnn as cudnn
 from training.SimCLRSolver import SimCLRSolver
 from training.LinearEvalSolver import LinearEvalSolver
 from training.OversampleSolver import OversampleSolver
+from training.ERMSolver import ERMSolver
 from utils import setup
 
 
@@ -16,7 +17,7 @@ def main():
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
 
-    if args.oversample:
+    if args.mode == 'oversample':
         solver = OversampleSolver(args)
 
         if args.phase == 'train':
@@ -24,8 +25,16 @@ def main():
         else:
             solver.evaluate()
 
-    else:
+    elif args.mode == 'SimCLR':
         solver = LinearEvalSolver(args)
+
+        if args.phase == 'train':
+            solver.train()
+        else:
+            solver.evaluate()
+
+    elif args.mode == 'ERM':
+        solver = ERMSolver(args)
 
         if args.phase == 'train':
             solver.train()
@@ -39,8 +48,8 @@ if __name__ == "__main__":
     #parser.add_argument('--exp_name', default=None, help='additional exp tag. See setup()')
 
 
-    parser.add_argument('--oversample', default=False, action='store_true',
-                        help='Oversample failed samples for debiased linear evaluation')
+    parser.add_argument('--mode', default='SimCLR', choices=['SimCLR', 'oversample', 'ERM'],
+                        help='Vanilla SimCLR / Oversample failed samples for debiased linear evaluation / Vanilla ERM')
     parser.add_argument('--oversample_pth', default=None, help='denoting which samples to be oversampled', type=str)
     parser.add_argument('--phase', default='train', choices=['train', 'test'], type=str)
 
@@ -65,6 +74,8 @@ if __name__ == "__main__":
                         help='softmax temperature (default: 0.07)')
     parser.add_argument('--simclr_epochs', default=100, type=int, metavar='N',
                         help='number of simclr pretraining epochs to run')
+    parser.add_argument('--ERM_epochs', default=30, type=int, metavar='N',
+                        help='number of ERM epochs to run')
     parser.add_argument('--linear_iters', default=1000, type=int, metavar='N',
                         help='number of linear evaluation iterations to run')
     parser.add_argument('--batch_size', default=256, type=int,
@@ -75,9 +86,11 @@ if __name__ == "__main__":
     parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)',
                         dest='weight_decay')
-    parser.add_argument('--lr_simclr', default=0.0003, type=float)
-    parser.add_argument('--lr_clf', default=0.0003, type=float)
-    parser.add_argument('--lr_decay_offset', default=10, type=int)
+    parser.add_argument('--lr_simclr', default=0.0003, type=float, help='lr for SimCLR pretraining')
+    parser.add_argument('--lr_clf', default=0.0003, type=float, help='lr for SimCLR linear eval')
+    parser.add_argument('--lr_ERM', default=0.001, type=float, help='lr for ERM')
+    parser.add_argument('--lr_decay_offset', default=10, type=int, help='lr decay is not used in SimCLR')
+    parser.add_argument('--lr_decay_gamma', default=0.1, type=float, help='For ERM')
     parser.add_argument('--lambda_offdiag', default=0.1, type=float, help='rank regularization')
     parser.add_argument('--lambda_upweight', default=5, type=float, help='oversampling bias-free samples')
     parser.add_argument('--lambda_list', default=None, nargs='+', type=float,
@@ -98,6 +111,8 @@ if __name__ == "__main__":
                         help='Log every n steps')
     parser.add_argument('--eval_every', default=300, type=int,
                         help='Evaluate every n iters')
+    parser.add_argument('--save_every', default=20, type=int,
+                        help='Save pretrained models every n epochs')
     parser.add_argument('--n-views', default=2, type=int, metavar='N',
                         help='Number of views for contrastive learning training.')
     parser.add_argument('--gpu-index', default=0, type=int, help='Gpu index.')
