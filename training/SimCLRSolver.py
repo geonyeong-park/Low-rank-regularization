@@ -68,7 +68,7 @@ class SimCLRSolver(nn.Module):
         self.scheduler = Munch()
         for net in self.nets.keys():
             self.scheduler[net] = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optims[net], T_max=len(self.loaders.train_simclr), eta_min=0, last_epoch=-1)
+                self.optims[net], T_max=args.simclr_epochs, eta_min=0, last_epoch=-1)
 
         self.writer = SummaryWriter(args.log_dir)
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -176,7 +176,7 @@ class SimCLRSolver(nn.Module):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= int(0.2 * self.args.simclr_epochs):
+            if epoch_counter >= int(0.4 * self.args.simclr_epochs):
                 self.scheduler.encoder.step()
 
             lr = self.scheduler.encoder.get_lr()[0]
