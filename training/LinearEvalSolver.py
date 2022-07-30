@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from utils import save_config_file, accuracy, CheckpointIO, MultiDimAverageMeter
+from utils import accuracy, CheckpointIO, MultiDimAverageMeter
 
 from data_aug.data_loader import get_original_loader, get_val_loader, InputFetcher
 from training.SimCLRSolver import SimCLRSolver
@@ -141,9 +141,6 @@ class LinearEvalSolver(SimCLRSolver):
 
     def linear_evaluation(self, loader, token='biased_linear'):
         scaler = GradScaler(enabled=self.args.fp16_precision)
-
-        # save config file
-        save_config_file(self.args.log_dir, self.args)
 
         logging.info(f"Start Linear evaluation for {self.args.linear_iters} iterations.")
 

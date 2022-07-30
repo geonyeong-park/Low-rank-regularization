@@ -5,7 +5,7 @@ from training.SimCLRSolver import SimCLRSolver
 from training.LinearEvalSolver import LinearEvalSolver
 from training.OversampleSolver import OversampleSolver
 from training.ERMSolver import ERMSolver
-from utils import setup
+from utils import setup, save_config
 
 
 def main():

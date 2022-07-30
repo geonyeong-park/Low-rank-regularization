@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from utils import save_config_file, accuracy, CheckpointIO, MultiDimAverageMeter
+from utils import accuracy, CheckpointIO, MultiDimAverageMeter
 
 from models.build_models import build_model, num_classes, last_dim
 from data_aug.data_loader import get_original_loader, get_val_loader, InputFetcher
@@ -136,9 +136,6 @@ class ERMSolver(nn.Module):
 
     def train(self):
         scaler = GradScaler(enabled=self.args.fp16_precision)
-
-        # save config file
-        save_config_file(self.args.log_dir, self.args)
 
         n_iter = 0
         logging.info(f"Start ERM training for {self.args.ERM_epochs} epochs.")

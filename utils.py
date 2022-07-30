@@ -22,16 +22,18 @@ def setup(args):
         ckpt_tmp = args.checkpoint_dir
         fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}')
         fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
-        args.score_file_template = fname_template
     else:
         fname = f'{args.data}_{attr}_ERM_seed_{args.seed}'
 
     args.log_dir = ospj(args.log_dir, fname)
     os.makedirs(args.log_dir, exist_ok=True)
 
+
     args.checkpoint_dir = ospj(args.checkpoint_dir, fname)
     os.makedirs(args.checkpoint_dir, exist_ok=True)
-    save_config_file(args.log_dir, args)
+
+    if args.mode != 'ERM':
+        args.score_file_template = fname_template
 
     return args
 
@@ -42,11 +44,9 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         shutil.copyfile(filename, 'model_best.pth.tar')
 
 
-def save_config_file(model_checkpoints_folder, args):
-    if not os.path.exists(model_checkpoints_folder):
-        os.makedirs(model_checkpoints_folder)
-        with open(os.path.join(model_checkpoints_folder, 'config.yml'), 'w') as outfile:
-            yaml.dump(args, outfile, default_flow_style=False)
+def save_config(args):
+    with open(os.path.join(args.log_dir, 'args.txt'), 'a') as f:
+        json.dump(args.__dict__, f, indent=2)
 
 
 def accuracy(output, target, topk=(1,)):
