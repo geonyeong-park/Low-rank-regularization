@@ -44,6 +44,11 @@ class LinearEvalSolver(SimCLRSolver):
             attr = torch.cat((labels.view(-1,1).to(self.device), bias.view(-1,1).to(self.device)), dim=1)
             attrwise_acc_meter.add(correct.cpu(), attr.cpu())
 
+        if self.args.data == 'stl10mnist':
+            attrwise_acc_meter.save(ospj(self.args.log_dir, f'valid_acc_{self.args.bias_ratio}.pth'))
+        else:
+            attrwise_acc_meter.save(ospj(self.args.log_dir, f'valid_acc.pth'))
+
         print(attrwise_acc_meter.cum.view(self.attr_dims[0], -1))
         print(attrwise_acc_meter.cnt.view(self.attr_dims[0], -1))
 
@@ -72,7 +77,7 @@ class LinearEvalSolver(SimCLRSolver):
     def save_score_idx(self, loader):
         self.nets.encoder.eval()
         self.nets.classifier.eval()
-        dataset = get_original_loader(self.args, return_dataset=True)
+        dataset = get_original_loader(self.args, return_dataset=True, simclr_aug=False)
         num_data = len(dataset)
 
         iterator = enumerate(loader)
@@ -115,9 +120,19 @@ class LinearEvalSolver(SimCLRSolver):
 
         self.nets.encoder.train()
         self.nets.classifier.train()
-        score_idx_path = ospj(self.args.checkpoint_dir, 'score_idx.pth')
-        wrong_idx_path = ospj(self.args.checkpoint_dir, 'wrong_idx.pth')
-        debias_idx_path = ospj(self.args.checkpoint_dir, 'debias_idx.pth')
+        score_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'score_idx{x}.pth')
+        wrong_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'wrong_idx{x}.pth')
+        debias_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'debias_idx{x}.pth')
+
+        if self.args.data == 'stl10mnist':
+            score_idx_path = score_idx_path(f'_{self.args.bias_ratio}')
+            wrong_idx_path = wrong_idx_path(f'_{self.args.bias_ratio}')
+            debias_idx_path = debias_idx_path(f'_{self.args.bias_ratio}')
+        else:
+            score_idx_path = score_idx_path('')
+            wrong_idx_path = wrong_idx_path('')
+            debias_idx_path = debias_idx_path('')
+
         torch.save(score_idx, score_idx_path)
         torch.save(wrong_idx, wrong_idx_path)
         torch.save(debias_idx, debias_idx_path)
@@ -172,7 +187,7 @@ class LinearEvalSolver(SimCLRSolver):
             #    self.scheduler.classifier.step()
 
             if (iter_counter+1) % self.args.eval_every == 0:
-                total_acc, valid_attrwise_acc = self.validation(self.loaders.val)
+                total_acc, valid_attrwise_acc = self.validation(self.loaders.test)
                 self.report_validation(valid_attrwise_acc, total_acc, iter_counter+1)
                 msg = f"Iter: {iter_counter+1}\tLoss: {loss}\tAccuracy: {total_acc}"
                 logging.info(msg)

@@ -15,10 +15,8 @@ def setup(args):
         attr = args.bias_attr
     elif args.data == 'celebA':
         attr = args.target_attr
-    elif args.data == 'bffhq':
+    elif args.data == 'bffhq' or args.data == 'stl10mnist':
         attr = ''
-    elif args.data == 'stl10mnist':
-        attr = args.bias_ratio
 
     if args.mode != 'ERM':
         ckpt_tmp = args.checkpoint_dir
@@ -91,6 +89,10 @@ class MultiDimAverageMeter(object):
     def reset(self):
         self.cum.zero_()
         self.cnt.zero_()
+
+    def save(self, pth):
+        acc = (self.cum / self.cnt)
+        torch.save(acc, pth)
 
 
 class CheckpointIO(object):

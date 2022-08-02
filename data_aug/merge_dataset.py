@@ -120,10 +120,12 @@ class STL10MNIST(Dataset):
         return biased_data, targets
 
     def _compose_stl10_mnist(self, stl_data, mnist_data):
+        """
         template = np.zeros_like(stl_data)
         template[:, 10:42, 10:42, :] = mnist_data
         template[:, 54:86, 54:86, :] = mnist_data
-
+        """
+        template = np.tile(mnist_data, (1, 3, 3, 1))
         data = np.clip(stl_data * (1 - template) + 255 * template, 0, 255)
         return data
 
