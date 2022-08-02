@@ -17,6 +17,8 @@ def setup(args):
         attr = args.target_attr
     elif args.data == 'bffhq':
         attr = ''
+    elif args.data == 'stl10mnist':
+        attr = args.bias_ratio
 
     if args.mode != 'ERM':
         ckpt_tmp = args.checkpoint_dir

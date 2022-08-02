@@ -10,6 +10,7 @@ import torchvision
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -135,11 +136,14 @@ class SimCLRSolver(nn.Module):
         n_iter = 0
         logging.info(f"Start SimCLR training for {self.args.simclr_epochs} epochs.")
 
+        i = 0
         for epoch_counter in range(self.args.simclr_epochs):
             for images, _, _, _ in tqdm(self.loaders.train_simclr):
                 images = torch.cat(images, dim=0)
 
                 images = images.to(self.args.device)
+                if i == 0: torchvision.utils.save_image(images, 'test.png', normalize=True)
+                i+=1
 
                 with autocast(enabled=self.args.fp16_precision):
                     aux = self.nets.encoder(images, simclr=True, penultimate=True)
@@ -176,7 +180,7 @@ class SimCLRSolver(nn.Module):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= int(0.4 * self.args.simclr_epochs):
+            if epoch_counter >= int(0.4 * self.args.simclr_epochs) and self.args.data != 'UTKFace':
                 self.scheduler.encoder.step()
 
             lr = self.scheduler.encoder.get_lr()[0]
