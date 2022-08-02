@@ -176,7 +176,7 @@ class SimCLRSolver(nn.Module):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= int(0.4 * self.args.simclr_epochs):
+            if epoch_counter >= int(0.4 * self.args.simclr_epochs) and self.args.data != 'UTKFace':
                 self.scheduler.encoder.step()
 
             lr = self.scheduler.encoder.get_lr()[0]
