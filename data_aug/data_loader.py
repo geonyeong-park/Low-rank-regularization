@@ -6,6 +6,7 @@ from munch import Munch
 from data_aug.utkface import get_utk_face
 from data_aug.celebA import get_celeba
 from data_aug.bffhq import get_bFFHQ
+from data_aug.merge_dataset import get_stl10mnist
 
 
 def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr_aug=True):
@@ -18,6 +19,9 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
                              simclr_aug=simclr_aug, img_size=224)
     elif dataset_name == 'bffhq':
         dataset = get_bFFHQ(args.data_dir, split='train', simclr_aug=simclr_aug)
+    elif dataset_name == 'stl10mnist':
+        dataset = get_stl10mnist(args.data_dir, split='train', simclr_aug=simclr_aug,
+                                 bias_ratio=args.bias_ratio)
     else:
         raise ValueError
 
@@ -52,6 +56,9 @@ def get_val_loader(args, split='valid'):
                              simclr_aug=False, img_size=224)
     elif dataset_name == 'bffhq':
         dataset = get_bFFHQ(args.data_dir, split=split, simclr_aug=False)
+    elif dataset_name == 'stl10mnist':
+        dataset = get_stl10mnist(args.data_dir, split='test', simclr_aug=False,
+                                 bias_ratio=0.1)
     else:
         raise ValueError
 

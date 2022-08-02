@@ -8,7 +8,8 @@ from models.resnet_simclr import modify_last_layer
 num_classes = {
     'celebA': 2,
     'UTKFace': 2,
-    'bffhq': 2
+    'bffhq': 2,
+    'stl10mnist': 10
 }
 
 arch = {

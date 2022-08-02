@@ -57,11 +57,13 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
                         help='path to dataset')
     parser.add_argument('--data', default='UTKFace',
-                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq'])
+                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq', 'stl10mnist'])
     parser.add_argument('--bias_attr', default='race', choices=['race', 'age'],
                         type=str, help='For UTKFace')
     parser.add_argument('--target_attr', default='blonde', choices=['blonde', 'makeup'],
                         type=str, help='For celebA')
+    parser.add_argument('--bias_ratio', default=0.1,
+                        type=float, help='For stl10mnist')
 
     # arch
     parser.add_argument('--arch', default='resnet18',
@@ -100,7 +102,7 @@ if __name__ == "__main__":
     parser.add_argument('--optimizer', default='Adam', choices=['Adam', 'SGD'], type=str)
 
     # misc
-    parser.add_argument('--seed', default=7777, type=int,
+    parser.add_argument('--seed', default=1004, type=int,
                         help='seed for initializing training. ')
     parser.add_argument('--fp16-precision', action='store_true',
                         help='Whether or not to use 16-bit precision GPU training.')

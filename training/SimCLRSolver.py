@@ -10,6 +10,7 @@ import torchvision
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
