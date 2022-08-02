@@ -17,7 +17,7 @@ class BiasedCelebASplit:
 
         self.celeba = CelebA(
             root=root,
-            split="train" if split == "valid" else split,
+            split="train" if split == "train_valid" else split,
             target_type="attr",
             transform=transform,
             download=True
@@ -26,7 +26,7 @@ class BiasedCelebASplit:
 
         if target_attr == 'blonde':
             self.target_idx = 9
-            if split in ['train', 'valid']:
+            if split in ['train', 'train_valid']:
                 save_path = Path(root) / 'pickles' / 'blonde'
                 if save_path.is_dir():
                     print(f'use existing blonde indices from {save_path}')
@@ -48,7 +48,7 @@ class BiasedCelebASplit:
         else:
             raise AttributeError
 
-        if split in ['train', 'valid']:
+        if split in ['train', 'train_valid']:
             save_path = Path(f'clusters/celeba_rand_indices_{target_attr}.pkl')
             if not save_path.exists():
                 rand_indices = torch.randperm(len(self.indices))
@@ -61,7 +61,7 @@ class BiasedCelebASplit:
 
             if split == 'train':
                 indices = rand_indices[:num_train]
-            elif split == 'valid':
+            elif split == 'train_valid':
                 indices = rand_indices[num_train:]
 
             self.indices = self.indices[indices]

@@ -52,6 +52,10 @@ def get_val_loader(args, split='valid'):
         dataset = get_utk_face(args.data_dir, bias_attr=args.bias_attr, split=split,
                                simclr_aug=False, img_size=64, bias_rate=0.,)
     elif dataset_name == 'celebA':
+        if split == 'valid':
+            split = 'train_valid'
+        elif split == 'test':
+            split = 'valid'
         dataset = get_celeba(args.data_dir, target_attr=args.target_attr, split=split,
                              simclr_aug=False, img_size=224)
     elif dataset_name == 'bffhq':
