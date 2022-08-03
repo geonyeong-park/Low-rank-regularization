@@ -45,7 +45,8 @@ class LinearEvalSolver(SimCLRSolver):
             attrwise_acc_meter.add(correct.cpu(), attr.cpu())
 
         if self.args.data == 'stl10mnist':
-            attrwise_acc_meter.save(ospj(self.args.log_dir, f'valid_acc_{self.args.bias_ratio}.pth'))
+            oversample_token = 'oversample' if self.args.mode == 'oversample' else 'normal'
+            attrwise_acc_meter.save(ospj(self.args.log_dir, f'valid_acc_{self.args.bias_ratio}_{oversample_token}.pth'))
         else:
             attrwise_acc_meter.save(ospj(self.args.log_dir, f'valid_acc.pth'))
 
