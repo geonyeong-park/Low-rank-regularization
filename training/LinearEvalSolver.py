@@ -187,7 +187,7 @@ class LinearEvalSolver(SimCLRSolver):
             #    self.scheduler.classifier.step()
 
             if (iter_counter+1) % self.args.eval_every == 0:
-                total_acc, valid_attrwise_acc = self.validation(self.loaders.test)
+                total_acc, valid_attrwise_acc = self.validation(self.loaders.val)
                 self.report_validation(valid_attrwise_acc, total_acc, iter_counter+1)
                 msg = f"Iter: {iter_counter+1}\tLoss: {loss}\tAccuracy: {total_acc}"
                 logging.info(msg)

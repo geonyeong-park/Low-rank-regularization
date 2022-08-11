@@ -76,7 +76,7 @@ class OversampleSolver(LinearEvalSolver):
         self.linear_evaluation(upweight_fetcher, token='debiased_linear')
 
     def evaluate(self):
-        fetcher_val = self.loaders.test
+        fetcher_val = self.loaders.val
         self._load_checkpoint(self.args.linear_iters, 'debiased_linear')
         total_acc, valid_attrwise_acc = self.validation(fetcher_val)
         self.report_validation(valid_attrwise_acc, total_acc, 0)
