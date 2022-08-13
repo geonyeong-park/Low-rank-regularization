@@ -30,10 +30,11 @@ class OversampleSolver(LinearEvalSolver):
         wrong_idx_path = ospj(self.args.checkpoint_dir, 'wrong_index_final.pth')
         torch.save(pseudo_label, wrong_idx_path)
 
-        debias_idx_path = ospj(self.args.checkpoint_dir, 'debias_idx.pth')
-        debias_label = torch.load(debias_idx_path)
+        if self.args.data != 'imagenet':
+            debias_idx_path = ospj(self.args.checkpoint_dir, 'debias_idx.pth')
+            debias_label = torch.load(debias_idx_path)
 
-        self.pseudo_label_precision_recall(pseudo_label, debias_label)
+            self.pseudo_label_precision_recall(pseudo_label, debias_label)
 
     def train_with_oversampling(self):
         """

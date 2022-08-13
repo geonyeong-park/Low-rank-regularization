@@ -1,4 +1,5 @@
 import os
+from os.path import join as ospj
 import torch
 from torch.utils.data import WeightedRandomSampler
 from torch.utils import data
@@ -7,12 +8,13 @@ from data_aug.utkface import get_utk_face
 from data_aug.celebA import get_celeba
 from data_aug.bffhq import get_bFFHQ
 from data_aug.merge_dataset import get_stl10mnist
+from data_aug.imagenet import get_imagenet
 
 
 def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr_aug=True):
     dataset_name = args.data
     if dataset_name == 'UTKFace':
-        dataset = get_utk_face(args.data_dir, bias_attr=args.bias_attr, split='train',
+        dataset = get_utk_face(args.data_dir, bias_attr=args.bias_attr, target_attr=args.target_attr, split='train',
                                simclr_aug=simclr_aug, img_size=64, bias_rate=0.9,)
     elif dataset_name == 'celebA':
         dataset = get_celeba(args.data_dir, target_attr=args.target_attr, split='train',
@@ -22,6 +24,8 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
     elif dataset_name == 'stl10mnist':
         dataset = get_stl10mnist(args.data_dir, split='train', simclr_aug=simclr_aug,
                                  bias_ratio=args.bias_ratio)
+    elif dataset_name == 'imagenet':
+        dataset = get_imagenet(ospj(args.data_dir, 'train'), train=True, simclr_aug=simclr_aug)
     else:
         raise ValueError
 
@@ -49,7 +53,7 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
 def get_val_loader(args, split='valid'):
     dataset_name = args.data
     if dataset_name == 'UTKFace':
-        dataset = get_utk_face(args.data_dir, bias_attr=args.bias_attr, split=split,
+        dataset = get_utk_face(args.data_dir, bias_attr=args.bias_attr, target_attr=args.target_attr, split=split,
                                simclr_aug=False, img_size=64, bias_rate=0.,)
     elif dataset_name == 'celebA':
         if split == 'valid':
@@ -63,6 +67,13 @@ def get_val_loader(args, split='valid'):
     elif dataset_name == 'stl10mnist':
         dataset = get_stl10mnist(args.data_dir, split='test', simclr_aug=False,
                                  bias_ratio=0.1)
+    elif dataset_name == 'imagenet':
+        assert split in ['biased', 'unbiased', 'ImageNet-A']
+        if split == 'biased' or split == 'unbiased':
+            dataset = get_imagenet(ospj(args.data_dir, 'val'), train=False, simclr_aug=False)
+        else:
+            dataset = get_imagenet(args.imagenetA_dir, train=False, simclr_aug=False,
+                                   val_data='ImageNet-A')
     else:
         raise ValueError
 
@@ -91,6 +102,7 @@ class InputFetcher:
 
     def __next__(self):
         x, y, bias_label, index = self._fetch()
+        bias_label = bias_label.to(self.device)
         inputs = Munch(index=index, images=x, labels=y, bias_label=bias_label)
 
         return Munch({k: v.to(self.device) for k, v in inputs.items()})

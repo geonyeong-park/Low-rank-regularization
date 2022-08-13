@@ -62,9 +62,17 @@ class SimCLRSolver(nn.Module):
 
         # BUILD LOADERS
         self.loaders = Munch(train_simclr=get_original_loader(args),
-                             train_linear=get_original_loader(args, simclr_aug=False),
-                             val=get_val_loader(args, split='valid'),
-                             test=get_val_loader(args, split='test'))
+                             train_linear=get_original_loader(args, simclr_aug=False))
+        if args.data != 'imagenet':
+            self.loaders.val = get_val_loader(args, split='valid')
+            self.loaders.test = get_val_loader(args, split='test')
+        else:
+            self.loaders.val = Munch(
+                biased=get_val_loader(args, 'biased'),
+                unbiased=get_val_loader(args, 'unbiased'),
+                ImageNetA=get_val_loader(args, 'ImageNet-A')
+            )
+            self.loaders.test = get_val_loader(args, 'biased')
 
         self.scheduler = Munch()
         for net in self.nets.keys():
@@ -177,8 +185,12 @@ class SimCLRSolver(nn.Module):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= int(0.4 * self.args.simclr_epochs):
-                self.scheduler.encoder.step()
+            if self.args.data != 'imagenet':
+                if epoch_counter >= int(0.4 * self.args.simclr_epochs):
+                    self.scheduler.encoder.step()
+            else:
+                if epoch_counter >= int(0.2 * self.args.simclr_epochs):
+                    self.scheduler.encoder.step()
 
             lr = self.scheduler.encoder.get_lr()[0]
             msg = f"Epoch: {epoch_counter}\tLoss: {loss}\tLR: {lr}\tTop1 accuracy: {top1[0]}"

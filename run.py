@@ -47,7 +47,6 @@ if __name__ == "__main__":
 
     #parser.add_argument('--exp_name', default=None, help='additional exp tag. See setup()')
 
-
     parser.add_argument('--mode', default='SimCLR', choices=['SimCLR', 'oversample', 'ERM'],
                         help='Vanilla SimCLR / Oversample failed samples for debiased linear evaluation / Vanilla ERM')
     parser.add_argument('--oversample_pth', default=None, help='denoting which samples to be oversampled', type=str)
@@ -57,13 +56,14 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
                         help='path to dataset')
     parser.add_argument('--data', default='UTKFace',
-                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq', 'stl10mnist'])
-    parser.add_argument('--bias_attr', default='race', choices=['race', 'age'],
+                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq', 'stl10mnist', 'imagenet'])
+    parser.add_argument('--bias_attr', default='age', choices=['race', 'age', 'gender'],
                         type=str, help='For UTKFace')
-    parser.add_argument('--target_attr', default='blonde', choices=['blonde', 'makeup'],
+    parser.add_argument('--target_attr', default='blonde', choices=['blonde', 'makeup', 'race', 'gender'],
                         type=str, help='For celebA')
     parser.add_argument('--bias_ratio', default=0.1,
                         type=float, help='For stl10mnist')
+    parser.add_argument('--imagenetA_dir', default='/home/user/research/dataset/ImageNet-A')
 
     # arch
     parser.add_argument('--arch', default='resnet18',

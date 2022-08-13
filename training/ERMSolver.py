@@ -5,6 +5,7 @@ import datetime
 from munch import Munch
 import logging
 import sys
+import numpy as np
 
 import torchvision
 import torch
@@ -55,9 +56,18 @@ class ERMSolver(nn.Module):
                             level=logging.INFO)
 
         # BUILD LOADERS
-        self.loaders = Munch(train=get_original_loader(args, simclr_aug=False),
-                             val=get_val_loader(args, split='valid'),
-                             test=get_val_loader(args, split='test'))
+        self.loaders = Munch(train=get_original_loader(args, simclr_aug=False))
+
+        if args.data != 'imagenet':
+            self.loaders.val = get_val_loader(args, split='valid')
+            self.loaders.test = get_val_loader(args, split='test')
+        else:
+            self.loaders.val = Munch(
+                biased=get_val_loader(args, 'biased'),
+                unbiased=get_val_loader(args, 'unbiased'),
+                ImageNetA=get_val_loader(args, 'ImageNet-A')
+            )
+            self.loaders.test = get_val_loader(args, 'biased')
 
         self.scheduler = Munch()
         milestones = [int(args.ERM_epochs/3), int(args.ERM_epochs/3)]
@@ -110,8 +120,8 @@ class ERMSolver(nn.Module):
             attr = torch.cat((labels.view(-1,1).to(self.device), bias.view(-1,1).to(self.device)), dim=1)
             attrwise_acc_meter.add(correct.cpu(), attr.cpu())
 
-        #print(attrwise_acc_meter.cum.view(self.attr_dims[0], -1))
-        #print(attrwise_acc_meter.cnt.view(self.attr_dims[0], -1))
+        print(attrwise_acc_meter.cum.view(self.attr_dims[0], -1))
+        print(attrwise_acc_meter.cnt.view(self.attr_dims[0], -1))
 
         total_acc = total_correct / float(total_num)
         accs = attrwise_acc_meter.get_mean()
@@ -134,8 +144,82 @@ class ERMSolver(nn.Module):
         logging.info(log)
         print(log)
 
+    def validate_imagenet(self, val_loader, num_classes=9, num_clusters=9,
+                          num_cluster_repeat=3, key=None):
+        self.nets.encoder.eval()
+        self.nets.classifier.eval()
+
+        total = 0
+        f_correct = 0
+        num_correct = [np.zeros([num_classes, num_clusters]) for _ in range(num_cluster_repeat)]
+        num_instance = [np.zeros([num_classes, num_clusters]) for _ in range(num_cluster_repeat)]
+
+        with torch.no_grad():
+            for images, labels, bias_labels, index in val_loader:
+
+                images, labels = images.to(self.device), labels.to(self.device)
+                for bias_label in bias_labels:
+                    bias_label.to(self.device)
+
+                output = self.nets.classifier(images)
+
+                batch_size = labels.size(0)
+                total += batch_size
+
+                if key == 'unbiased':
+                    num_correct, num_instance = self.imagenet_unbiased_accuracy(
+                        output.data, labels, bias_labels,
+                        num_correct, num_instance, num_cluster_repeat)
+                else:
+                    f_correct += self.n_correct(output, labels)
+
+        self.nets.encoder.train()
+        self.nets.classifier.train()
+
+        if key == 'unbiased':
+            result = {'num_correct': np.array(num_correct),
+                      'num_instance': np.array(num_instance)}
+            np.save(ospj(self.args.log_dir, 'unbiased_acc_array.npy'), result)
+            for k in range(num_cluster_repeat):
+                x, y = [], []
+                _num_correct, _num_instance = num_correct[k].flatten(), num_instance[k].flatten()
+                for i in range(_num_correct.shape[0]):
+                    __num_correct, __num_instance = _num_correct[i], _num_instance[i]
+                    if __num_instance >= 10:
+                        x.append(__num_instance)
+                        y.append(__num_correct / __num_instance)
+                f_correct += sum(y) / len(x)
+
+            return f_correct / num_cluster_repeat
+        else:
+            return f_correct / total
+
+    def imagenet_unbiased_accuracy(self, outputs, labels, cluster_labels,
+                                   num_correct, num_instance,
+                                   num_cluster_repeat=3):
+        for j in range(num_cluster_repeat):
+            for i in range(outputs.size(0)):
+                output = outputs[i]
+                label = labels[i]
+                cluster_label = cluster_labels[j][i]
+
+                _, pred = output.topk(1, 0, largest=True, sorted=True)
+                correct = pred.eq(label).view(-1).float()
+
+                num_correct[j][label][cluster_label] += correct.item()
+                num_instance[j][label][cluster_label] += 1
+
+        return num_correct, num_instance
+
+    def n_correct(self, pred, labels):
+        _, predicted = torch.max(pred.data, 1)
+        n_correct = (predicted == labels).sum().item()
+        return n_correct
+
+
     def train(self):
         scaler = GradScaler(enabled=self.args.fp16_precision)
+        imagenet_stats = {'biased': [], 'unbiased': [], 'ImageNetA': []}
 
         n_iter = 0
         logging.info(f"Start ERM training for {self.args.ERM_epochs} epochs.")
@@ -170,16 +254,20 @@ class ERMSolver(nn.Module):
             logging.info(msg)
             print(msg)
 
-            if (epoch_counter + 1) % self.args.eval_every == 0:
-                self._save_checkpoint(step=epoch_counter+1, token='biased_ERM')
-
-            if (n_iter+1) % self.args.eval_every == 0:
+            if self.args.data != 'imagenet':
                 total_acc, valid_attrwise_acc = self.validation(self.loaders.val)
                 self.report_validation(valid_attrwise_acc, total_acc, n_iter+1)
                 msg = f"Iter: {n_iter+1}\tLoss: {loss}\tAccuracy: {total_acc}"
                 logging.info(msg)
                 print(msg)
-
+            else:
+                msg = f"Iter: {n_iter+1}\t"
+                for key, val_loader in self.loaders.val.items():
+                    val_acc = self.validate_imagenet(val_loader, key=key)
+                    imagenet_stats[key].append(val_acc)
+                    msg += f"{key}: {val_acc}\t"
+                logging.info(msg)
+                print(msg)
 
 
         logging.info("Training has finished.")

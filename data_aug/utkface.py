@@ -33,14 +33,14 @@ class UTKFace:
 
 class BiasedUTKFace:
     def __init__(self, root, transform, split,
-                 bias_attr='race', bias_rate=0.9,
+                 bias_attr='age', target_attr='gender', bias_rate=0.9,
                  **kwargs):
         self.root = Path(root) / 'images'
         filenames = np.array(os.listdir(self.root))
         np.random.shuffle(filenames)
         num_files = len(filenames)
         num_train = int(num_files * 0.8)
-        target_attr = 'gender'
+        #target_attr = 'gender'
 
         self.transform = transform
         self.target_attr = target_attr
@@ -161,7 +161,7 @@ class BiasedUTKFace:
         return len(self.files)
 
 
-def get_utk_face(root, bias_attr='race', split='train', simclr_aug=False, img_size=64,
+def get_utk_face(root, bias_attr='age', target_attr='gender', split='train', simclr_aug=False, img_size=64,
                  bias_rate=0.9,):
     logging.info(f'get_utk_face - split: {split}, aug: {simclr_aug}')
     size_dict = {64: 72, 128: 144, 224: 256}
@@ -197,7 +197,7 @@ def get_utk_face(root, bias_attr='race', split='train', simclr_aug=False, img_si
     if simclr_aug:
         transform = ContrastiveLearningViewGenerator(transform)
 
-    dataset = BiasedUTKFace(root, transform=transform, split=split, bias_rate=bias_rate, bias_attr=bias_attr)
+    dataset = BiasedUTKFace(root, transform=transform, split=split, bias_rate=bias_rate, bias_attr=bias_attr, target_attr=target_attr)
     return dataset
 
 def get_confusion_matrix(num_classes, targets, biases):

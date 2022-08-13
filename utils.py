@@ -15,7 +15,7 @@ def setup(args):
         attr = args.bias_attr
     elif args.data == 'celebA':
         attr = args.target_attr
-    elif args.data == 'bffhq' or args.data == 'stl10mnist':
+    elif args.data == 'bffhq' or args.data == 'stl10mnist' or args.data == 'imagenet':
         attr = ''
 
     if args.mode != 'ERM':

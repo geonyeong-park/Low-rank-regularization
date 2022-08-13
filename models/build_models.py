@@ -9,7 +9,8 @@ num_classes = {
     'celebA': 2,
     'UTKFace': 2,
     'bffhq': 2,
-    'stl10mnist': 10
+    'stl10mnist': 10,
+    'imagenet': 9
 }
 
 arch = {
@@ -41,13 +42,13 @@ def build_model(args):
     n_classes = num_classes[args.data]
 
     if args.mode != 'ERM':
-        encoder = arch[args.arch](n_classes, args.simclr_dim)
+        encoder = arch[args.arch](n_classes, args.simclr_dim, pretrain=True if args.data != 'imagenet' else False)
         classifier= FC(last_dim[args.arch], n_classes)
 
         nets = Munch(encoder=encoder,
                     classifier=classifier)
     else:
-        classifier = arch_ERM[args.arch](pretrained=True)
+        classifier = arch_ERM[args.arch](pretrained=True if args.data != 'imagenet' else False)
         classifier = modify_last_layer(classifier, n_classes=n_classes)
 
         nets = Munch(classifier=classifier)
