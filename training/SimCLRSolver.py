@@ -131,7 +131,55 @@ class SimCLRSolver(nn.Module):
 
         logits = logits / self.args.temperature
         return logits, labels
+    
+    
+    
+    ############
+    # Pos-only
+    ############
 
+    def simsiam_loss(self, f_prj, f_pred):
+        z_1 = f_prj[:f_prj.shape[0] // 2, :].detach()
+        z_2 = f_prj[f_prj.shape[0] // 2:, :].detach()
+
+        p_1 = f_pred[:f_pred.shape[0] // 2, :]
+        p_2 = f_pred[f_pred.shape[0] // 2:, :]
+
+        loss = nn.CosineSimilarity(dim=1)(p_1, z_2).mean() + nn.CosineSimilarity(dim=1)(p_2, z_1).mean()
+        loss *= 0.5
+        loss *= self.args.lambda_simsiam
+
+        return loss
+
+    def vicReg_loss(self, features):
+        b = features.shape[0] // 2
+        dim = features.shape[1]
+
+        z_1 = features[:b, :]
+        z_2 = features[b:, :]
+        loss_pos = nn.MSELoss()(z_1, z_2)
+
+        ## zero mean
+        z_1 = z_1 - z_1.mean(dim=0)
+        z_2 = z_2 - z_2.mean(dim=0)
+
+        std_1 = torch.sqrt(z_1.var(dim=0) + 0.0001)
+        std_2 = torch.sqrt(z_2.var(dim=0) + 0.0001)
+        loss_std = torch.mean(F.relu(1 - std_1)) / 2 + torch.mean(F.relu(1 - std_2)) / 2
+
+        cov_1 = (z_1.T @ z_1) / (b - 1)
+        cov_2 = (z_2.T @ z_2) / (b - 1)
+        loss_cov = self.off_diagonal(cov_1).pow_(2).sum().div(dim) \
+                   + self.off_diagonal(cov_2).pow_(2).sum().div(dim)
+
+
+        loss = loss_pos * self.args.lambda_vicReg_pos \
+               + loss_std * self.args.lambda_vicReg_std \
+               + loss_cov * self.args.lambda_vicReg_cov
+
+        return loss
+        
+    
     def off_diagonal(self, x):
         # return a flattened view of the off-diagonal elements of a square matrix
         n, m = x.shape
@@ -151,10 +199,25 @@ class SimCLRSolver(nn.Module):
                 images = images.to(self.args.device)
 
                 with autocast(enabled=self.args.fp16_precision):
-                    aux = self.nets.encoder(images, simclr=True, penultimate=True)
-                    features_simclr = aux['simclr']
-                    logits, labels = self.info_nce_loss(features_simclr)
-                    loss_nce = self.criterion(logits, labels)
+                    if self.args.mode_CL == 'SimCLR':
+                        aux = self.nets.encoder(images, simclr=True, penultimate=True)
+                        features_simclr = aux['simclr']
+                        logits, labels = self.info_nce_loss(features_simclr)
+                        loss_nce = self.criterion(logits, labels)
+
+
+                    elif self.args.mode_CL == 'SimSiam':
+                        aux = self.nets.encoder(images, simsiam=True, penultimate=True)
+                        features_prj = aux['simsiam_prj']
+                        features_pred = aux['simsiam_pred']
+                        loss_nce = self.simsiam_loss(features_prj, features_pred)
+                        logits, labels = self.info_nce_loss(features_prj.detach())
+
+                    elif self.args.mode_CL == 'vicReg':
+                        aux = self.nets.encoder(images, vicReg=True, penultimate=True)
+                        features_vicReg = aux['vicReg']
+                        loss_nce = self.vicReg_loss(features_vicReg)
+                        logits, labels = self.info_nce_loss(features_vicReg.detach())
 
                     # ---------------------------------------------------------
                     # Covariance regularization
