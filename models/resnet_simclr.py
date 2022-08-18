@@ -36,6 +36,46 @@ class SimCLRResNet(ResNet):
             nn.Linear(last_dim, simclr_dim),
         )
 
+
+
+        ###########
+        # Simsiam
+        ###########
+        prj_dim = last_dim * 8
+        pred_dim = last_dim * 4
+        self.simsiam_prj_layer = nn.Sequential(
+            nn.Linear(last_dim, last_dim, bias=False),
+            # nn.BatchNorm1d(last_dim),
+            # nn.ReLU(inplace=True),
+            # nn.Linear(last_dim, last_dim, bias=False),
+            nn.BatchNorm1d(last_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(last_dim, prj_dim, bias=False),
+            nn.BatchNorm1d(prj_dim, affine=False)
+        )
+
+        self.simsiam_pred_layer = nn.Sequential(
+            nn.Linear(prj_dim, pred_dim, bias=False),
+            nn.BatchNorm1d(pred_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(pred_dim, prj_dim)
+        )
+
+        ###########
+        # vicReg
+        ###########
+        dim = 8192
+        mlp_spec = [last_dim, dim, dim, dim]
+        temp_layers = []
+        for i in range(mlp_spec.__len__()-2):
+            temp_layers.append(nn.Linear(mlp_spec[i], mlp_spec[i+1]))
+            temp_layers.append(nn.BatchNorm1d(mlp_spec[i + 1]))
+            temp_layers.append(nn.ReLU(True))
+        temp_layers.append(nn.Linear(mlp_spec[-2], mlp_spec[-1], bias=False))
+        self.vicReg_layer = nn.Sequential(*temp_layers)
+
+
+
     def penultimate(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -51,7 +91,7 @@ class SimCLRResNet(ResNet):
         feature = torch.flatten(x, 1)
         return feature
 
-    def forward(self, inputs, penultimate=False, simclr=False, freeze=False):
+    def forward(self, inputs, penultimate=False, simclr=False, simsiam=False, vicReg=False, freeze=False):
         aux = {}
         assert penultimate or simclr
 
@@ -64,27 +104,34 @@ class SimCLRResNet(ResNet):
         if simclr:
             aux['simclr'] = self.simclr_layer(features)
 
+        if simsiam:
+            prj = self.simsiam_prj_layer(features)
+            pred = self.simsiam_pred_layer(prj)
+            aux['simsiam_prj'] = prj
+            aux['simsiam_pred'] = pred
+
+        if vicReg:
+            aux['vicReg'] = self.vicReg_layer(features)
+
         return aux
 
 
-def ResNet18(num_classes, simclr_dim, pretrain=True):
+def ResNet18(num_classes, simclr_dim):
     net = SimCLRResNet(BasicBlock, [2, 2, 2, 2], simclr_dim)
-    if pretrain:
-        url = URL_DICT['resnet18']
-        checkpoint = load_url(url)
-        net.load_state_dict(checkpoint, strict=False)
-        print(f'Load {url}')
+    url = URL_DICT['resnet18']
+    checkpoint = load_url(url)
+    net.load_state_dict(checkpoint, strict=False)
     net = modify_last_layer(net, num_classes)
+    print(f'Load {url}')
     return net
 
-def ResNet50(num_classes, simclr_dim, pretrain=True):
+def ResNet50(num_classes, simclr_dim):
     net = SimCLRResNet(Bottleneck, [3, 4, 6, 3], simclr_dim)
-    if pretrain:
-        url = URL_DICT['resnet50']
-        checkpoint = load_url(url)
-        net.load_state_dict(checkpoint, strict=False)
-        print(f'Load {url}')
+    url = URL_DICT['resnet50']
+    checkpoint = load_url(url)
+    net.load_state_dict(checkpoint, strict=False)
     net = modify_last_layer(net, num_classes)
+    print(f'Load {url}')
     return net
 
 def Build_ResNet(base_model, num_classes, simclr_dim):
