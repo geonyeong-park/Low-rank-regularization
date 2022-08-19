@@ -116,22 +116,24 @@ class SimCLRResNet(ResNet):
         return aux
 
 
-def ResNet18(num_classes, simclr_dim):
+def ResNet18(num_classes, simclr_dim, pretrain=True):
     net = SimCLRResNet(BasicBlock, [2, 2, 2, 2], simclr_dim)
-    url = URL_DICT['resnet18']
-    checkpoint = load_url(url)
-    net.load_state_dict(checkpoint, strict=False)
+    if pretrain:
+        url = URL_DICT['resnet18']
+        checkpoint = load_url(url)
+        net.load_state_dict(checkpoint, strict=False)
+        print(f'Load {url}')
     net = modify_last_layer(net, num_classes)
-    print(f'Load {url}')
     return net
 
-def ResNet50(num_classes, simclr_dim):
+def ResNet50(num_classes, simclr_dim, pretrain=True):
     net = SimCLRResNet(Bottleneck, [3, 4, 6, 3], simclr_dim)
-    url = URL_DICT['resnet50']
-    checkpoint = load_url(url)
-    net.load_state_dict(checkpoint, strict=False)
+    if pretrain:
+        url = URL_DICT['resnet50']
+        checkpoint = load_url(url)
+        net.load_state_dict(checkpoint, strict=False)
+        print(f'Load {url}')
     net = modify_last_layer(net, num_classes)
-    print(f'Load {url}')
     return net
 
 def Build_ResNet(base_model, num_classes, simclr_dim):

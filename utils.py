@@ -21,7 +21,7 @@ def setup(args):
     if args.mode != 'ERM':
         ckpt_tmp = args.checkpoint_dir
         fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}')
-        fname = f'{args.data}_{attr}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
+        fname = f'{args.data}_{attr}_{args.mode_CL}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
     else:
         fname = f'{args.data}_{attr}_ERM_seed_{args.seed}'
 
@@ -131,8 +131,8 @@ class CheckpointIO(object):
 
         if which:
             module = self.module_dict[which]
-            module.load_state_dict(module_dict[which])
+            module.load_state_dict(module_dict[which], strict=False)
             return
 
         for name, module in self.module_dict.items():
-            module.load_state_dict(module_dict[name])
+            module.load_state_dict(module_dict[name], strict=False)

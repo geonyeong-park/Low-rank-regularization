@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--log_dir', type=str, default='expr/log')
     parser.add_argument('--checkpoint_dir', type=str, default='expr/checkpoint')
-    
+
     ################
     # contrastives
     ################
@@ -133,6 +133,6 @@ if __name__ == "__main__":
                         help='Variance regularization loss coefficient')
     parser.add_argument("--lambda_vicReg_cov", type=float, default=1.0,
                         help='Covariance regularization loss coefficient')
-    
+    parser.add_argument('--mode_CL', default='SimCLR', choices=['SimCLR', 'SimSiam', 'vicReg'])
 
     main()
