@@ -1,5 +1,6 @@
 import os
 from os.path import join as ospj
+import numpy as np
 import torch
 from torch.utils.data import WeightedRandomSampler
 from torch.utils import data
@@ -10,8 +11,12 @@ from data_aug.bffhq import get_bFFHQ
 from data_aug.merge_dataset import get_stl10mnist
 from data_aug.imagenet import get_imagenet
 
+from sklearn.model_selection import ShuffleSplit
+from torch.utils.data import Subset
 
-def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr_aug=True):
+
+def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr_aug=True,
+                        finetune=False, finetune_ratio=0.):
     dataset_name = args.data
     if dataset_name == 'UTKFace':
         dataset = get_utk_face(args.data_dir, bias_attr=args.bias_attr, target_attr=args.target_attr, split='train',
@@ -28,6 +33,24 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
         dataset = get_imagenet(ospj(args.data_dir, 'train'), train=True, simclr_aug=simclr_aug)
     else:
         raise ValueError
+
+    if finetune:
+        assert finetune_ratio != 0
+        indices_file = ospj(args.checkpoint_dir, f'subset_indices_{finetune_ratio}.npy')
+
+        if os.path.exists(indices_file):
+            print(f'{indices_file} exists')
+            indices = np.load(indices_file)
+            dataset = Subset(dataset, indices)
+        else:
+            num_data = len(dataset)
+            indices = np.random.choice(num_data, int(finetune_ratio*num_data))
+            dataset = Subset(dataset, indices)
+            print('*'*50)
+            print(f'Sample subset of training samples for finetuning: length = {len(dataset)}\n')
+            np.save(indices_file, indices)
+            print(f'Saved indices in {indices_file}')
+            print('*'*50)
 
     if return_dataset:
         return dataset

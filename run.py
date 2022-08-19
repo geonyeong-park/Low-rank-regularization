@@ -51,6 +51,8 @@ if __name__ == "__main__":
                         help='Vanilla SimCLR / Oversample failed samples for debiased linear evaluation / Vanilla ERM')
     parser.add_argument('--oversample_pth', default=None, help='denoting which samples to be oversampled', type=str)
     parser.add_argument('--phase', default='train', choices=['train', 'test'], type=str)
+    parser.add_argument('--finetune', action='store_true',
+                        help='If true, do finetuning. Else, do linear evaluation.')
 
     # data
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
@@ -63,6 +65,8 @@ if __name__ == "__main__":
                         type=str, help='For celebA')
     parser.add_argument('--bias_ratio', default=0.1,
                         type=float, help='For stl10mnist')
+    parser.add_argument('--finetune_ratio', default=0.1,
+                        type=float, help='How many samples are preserved for finetuning')
     parser.add_argument('--imagenetA_dir', default='/home/user/research/dataset/ImageNet-A')
 
     # arch
@@ -79,7 +83,7 @@ if __name__ == "__main__":
     parser.add_argument('--ERM_epochs', default=30, type=int, metavar='N',
                         help='number of ERM epochs to run')
     parser.add_argument('--linear_iters', default=1000, type=int, metavar='N',
-                        help='number of linear evaluation iterations to run')
+                        help='number of linear evaluation (or potentially finetune) iterations to run')
     parser.add_argument('--batch_size', default=256, type=int,
                         metavar='N',
                         help='mini-batch size (default: 256), this is the total '

@@ -57,12 +57,16 @@ class SimCLRSolver(nn.Module):
         self.ckptios = [
             CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_{}_nets.ckpt'), **self.nets),
         ]
-        logging.basicConfig(filename=os.path.join(args.log_dir, 'training.log'),
+        log_name = 'training.log' if not args.finetune else 'finetune.log'
+        logging.basicConfig(filename=os.path.join(args.log_dir, log_name),
                             level=logging.INFO)
 
         # BUILD LOADERS
         self.loaders = Munch(train_simclr=get_original_loader(args),
                              train_linear=get_original_loader(args, simclr_aug=False))
+        if args.finetune:
+            self.loaders.train_finetune = get_original_loader(args, simclr_aug=False, finetune=True, finetune_ratio=args.finetune_ratio)
+
         if args.data != 'imagenet':
             self.loaders.val = get_val_loader(args, split='valid')
             self.loaders.test = get_val_loader(args, split='test')
