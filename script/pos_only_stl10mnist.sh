@@ -3,7 +3,7 @@
 CUDA_VISIBLE_DEVICES=$1 python run.py --data stl10mnist --simclr_epochs 20 \
     --linear_iters 3000 --seed 111 --lambda_offdiag 0. \
     --batch_size 128 \
-    --num_unique_mnist $2 --mode_CL $3
+    --num_unique_mnist $2 --mode_CL $3 --save_every 1
 
 for ((i = 1; i < 21; ++i)); do
     echo "[STL10MNIST] pretrained epochs $i, number of unique mnist $2"
