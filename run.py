@@ -63,6 +63,8 @@ if __name__ == "__main__":
                         type=str, help='For celebA')
     parser.add_argument('--bias_ratio', default=0.1,
                         type=float, help='For stl10mnist')
+    parser.add_argument('--num_unique_mnist', default=60000,
+                        type=int, help='For stl10mnist')
     parser.add_argument('--imagenetA_dir', default='/home/user/research/dataset/ImageNet-A')
 
     # arch
@@ -111,7 +113,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--log-every-n-steps', default=100, type=int,
                         help='Log every n steps')
-    parser.add_argument('--eval_every', default=300, type=int,
+    parser.add_argument('--eval_every', default=500, type=int,
                         help='Evaluate every n iters')
     parser.add_argument('--save_every', default=20, type=int,
                         help='Save pretrained models every n epochs')

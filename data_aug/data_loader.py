@@ -22,8 +22,8 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
     elif dataset_name == 'bffhq':
         dataset = get_bFFHQ(args.data_dir, split='train', simclr_aug=simclr_aug)
     elif dataset_name == 'stl10mnist':
-        dataset = get_stl10mnist(args.data_dir, split='train', simclr_aug=simclr_aug,
-                                 bias_ratio=args.bias_ratio)
+        dataset = get_stl10mnist(args.data_dir, split='train' if not simclr_aug else 'unlabeled', simclr_aug=simclr_aug,
+                                 num_unique_mnist=args.num_unique_mnist)
     elif dataset_name == 'imagenet':
         dataset = get_imagenet(ospj(args.data_dir, 'train'), train=True, simclr_aug=simclr_aug)
     else:

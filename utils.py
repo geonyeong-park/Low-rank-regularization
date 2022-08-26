@@ -15,8 +15,10 @@ def setup(args):
         attr = args.bias_attr
     elif args.data == 'celebA':
         attr = args.target_attr
-    elif args.data == 'bffhq' or args.data == 'stl10mnist' or args.data == 'imagenet':
+    elif args.data == 'bffhq' or args.data == 'imagenet':
         attr = ''
+    elif args.data == 'stl10mnist':
+        attr = args.num_unique_mnist
 
     if args.mode != 'ERM':
         ckpt_tmp = args.checkpoint_dir

@@ -17,9 +17,9 @@ from data_aug.view_generator import ContrastiveLearningViewGenerator
 
 class STL10MNIST(Dataset):
     def __init__(self, root, train='unlabeled', transform=None,
-                 download=False, bias_ratio=0.9):
+                 download=False, num_unique_mnist=60000, bias_ratio=0.9):
 
-        self.num_unique_mnist = 60000 if train == 'train' else 10000
+        self.num_unique_mnist = num_unique_mnist
         self.n_confusing_labels = 9
         self.bias_ratio = bias_ratio
         self.transform = transform
@@ -28,7 +28,7 @@ class STL10MNIST(Dataset):
 
         self.stl = datasets.STL10(root, split=train, transform=None, download=download)
         self.stl.data = np.transpose(self.stl.data, (0, 2, 3, 1))
-        self.mnist = MNIST(root, train=True if train != 'test' else False, download=download)
+        self.mnist = MNIST(root, train=True, download=download)
         self.mnist.data = transforms.Resize(32)(self.mnist.data)
 
         indices = np.arange(len(self.mnist.data))
@@ -49,8 +49,9 @@ class STL10MNIST(Dataset):
             self.data, self.biased_targets = self.make_data(self.num_unique_mnist, len(self.stl))
             self.targets = torch.LongTensor(self.stl.labels)
         elif train == 'train':
+            self.data, self.biased_targets = self.make_data(self.num_unique_mnist, len(self.stl))
             self.targets = torch.LongTensor(self.stl.labels)
-            self.data, self.targets, self.biased_targets = self.make_biased_data()
+            #self.data, self.targets, self.biased_targets = self.make_biased_data()
 
     def _shuffle(self, iteratable):
         if self.random:
@@ -143,7 +144,7 @@ class STL10MNIST(Dataset):
 
 
 def get_stl10mnist(root, split='train', simclr_aug=True,
-                   img_size=224, bias_ratio=0.9):
+                   img_size=224, num_unique_mnist=60000, bias_ratio=0.9):
     logging.info(f'get_stl10mnist - split:{split}, aug: {simclr_aug}')
     if split == 'train' and simclr_aug:
         split = 'unlabeled'
@@ -188,6 +189,7 @@ def get_stl10mnist(root, split='train', simclr_aug=True,
         root=root,
         train=split,
         transform=transform,
+        num_unique_mnist=num_unique_mnist,
         bias_ratio=bias_ratio
     )
 

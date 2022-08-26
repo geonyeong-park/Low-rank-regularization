@@ -131,9 +131,7 @@ class SimCLRSolver(nn.Module):
 
         logits = logits / self.args.temperature
         return logits, labels
-    
-    
-    
+
     ############
     # Pos-only
     ############
@@ -178,8 +176,8 @@ class SimCLRSolver(nn.Module):
                + loss_cov * self.args.lambda_vicReg_cov
 
         return loss
-        
-    
+
+
     def off_diagonal(self, x):
         # return a flattened view of the off-diagonal elements of a square matrix
         n, m = x.shape
@@ -260,7 +258,7 @@ class SimCLRSolver(nn.Module):
             logging.info(msg)
             print(msg)
 
-            if (epoch_counter + 1) % self.args.eval_every == 0:
+            if (epoch_counter + 1) % self.args.save_every == 0:
                 self._save_checkpoint(step=epoch_counter+1, token='biased_simclr')
 
         logging.info("Training has finished.")
