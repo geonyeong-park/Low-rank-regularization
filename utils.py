@@ -20,7 +20,7 @@ def setup(args):
 
     if args.mode != 'ERM':
         ckpt_tmp = args.checkpoint_dir
-        fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_lambda_{ld}_seed_{args.seed}')
+        fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_{args.mode_CL}_lambda_{ld}_seed_{args.seed}')
         fname = f'{args.data}_{attr}_{args.mode_CL}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
     else:
         fname = f'{args.data}_{attr}_ERM_seed_{args.seed}'

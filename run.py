@@ -49,7 +49,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--mode', default='SimCLR', choices=['SimCLR', 'oversample', 'ERM'],
                         help='Vanilla SimCLR / Oversample failed samples for debiased linear evaluation / Vanilla ERM')
-    parser.add_argument('--mode_CL', default='SimCLR', choices=['SimCLR', 'SimSiam', 'vicReg'])
     parser.add_argument('--oversample_pth', default=None, help='denoting which samples to be oversampled', type=str)
     parser.add_argument('--phase', default='train', choices=['train', 'test'], type=str)
 
