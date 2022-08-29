@@ -136,5 +136,12 @@ if __name__ == "__main__":
     parser.add_argument("--lambda_vicReg_cov", type=float, default=1.0,
                         help='Covariance regularization loss coefficient')
     parser.add_argument('--mode_CL', default='SimCLR', choices=['SimCLR', 'SimSiam', 'vicReg'])
+    
+    
+    ## ifm
+    parser.add_argument("--lambda_ifm", type=float, default=0,
+                        help='IFM loss coefficient')
+    parser.add_argument("--epsilon_ifm", type=float, default=0,
+                        help='IFM loss epsilon')
 
     main()
