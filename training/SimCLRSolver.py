@@ -102,7 +102,7 @@ class SimCLRSolver(nn.Module):
         for ckptio in self.ckptios:
             ckptio.load(step, token, which, return_fname)
 
-    def info_nce_loss(self, features):
+    def info_nce_loss(self, features, epsilon=0):
         labels = torch.cat([torch.arange(self.args.batch_size) for i in range(self.args.n_views)], dim=0)
         labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
         labels = labels.to(self.args.device)
@@ -121,10 +121,10 @@ class SimCLRSolver(nn.Module):
         # assert similarity_matrix.shape == labels.shape
 
         # select and combine multiple positives
-        positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
+        positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1) - epsilon
 
         # select only the negatives the negatives
-        negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
+        negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1) + epsilon
 
         logits = torch.cat([positives, negatives], dim=1)
         labels = torch.zeros(logits.shape[0], dtype=torch.long).to(self.args.device)
@@ -202,8 +202,13 @@ class SimCLRSolver(nn.Module):
                         features_simclr = aux['simclr']
                         logits, labels = self.info_nce_loss(features_simclr)
                         loss_nce = self.criterion(logits, labels)
-
-
+                        
+                        if self.args.lambda_ifm > 0:
+                            logits, labels = self.info_nce_loss(features_simclr, epsilon=self.args.epsilon_ifm)
+                            loss_nce_ifm = self.criterion(logits, labels)
+                            loss_nce += loss_nce_ifm * self.args.lambda_ifm
+                        
+                        
                     elif self.args.mode_CL == 'SimSiam':
                         aux = self.nets.encoder(images, simsiam=True, penultimate=True)
                         features_prj = aux['simsiam_prj']
