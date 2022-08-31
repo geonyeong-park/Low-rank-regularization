@@ -144,7 +144,7 @@ class SimCLRSolver(nn.Module):
         p_2 = f_pred[f_pred.shape[0] // 2:, :]
 
         loss = nn.CosineSimilarity(dim=1)(p_1, z_2).mean() + nn.CosineSimilarity(dim=1)(p_2, z_1).mean()
-        loss *= 0.5
+        loss *= -0.5
         loss *= self.args.lambda_simsiam
 
         return loss
