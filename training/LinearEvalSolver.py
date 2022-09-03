@@ -118,7 +118,7 @@ class LinearEvalSolver(SimCLRSolver):
 
             total_num += labels.shape[0]
 
-        assert total_num == len(score_idx)
+        if not self.args.finetune: assert total_num == len(score_idx)
         print(f'Average bias score: {score_idx.mean()}')
 
         self.nets.encoder.train()
@@ -143,6 +143,8 @@ class LinearEvalSolver(SimCLRSolver):
         self.pseudo_label_precision_recall(wrong_idx, debias_idx)
 
     def pseudo_label_precision_recall(self, wrong_label, debias_label):
+        print(torch.sum(wrong_label))
+        print(torch.sum(debias_label))
         spur_precision = torch.sum(
                 (wrong_label == 1) & (debias_label == 1)
             ) / torch.sum(wrong_label)
@@ -278,7 +280,7 @@ class LinearEvalSolver(SimCLRSolver):
         n_correct = (predicted == labels).sum().item()
         return n_correct
 
-    def linear_evaluation(self, loader, token='biased_linear'):
+    def linear_evaluation(self, loader, token='biased_linear', finetune=False):
         scaler = GradScaler(enabled=self.args.fp16_precision)
 
         logging.info(f"Start Linear evaluation for {self.args.linear_iters} iterations.")
@@ -289,16 +291,18 @@ class LinearEvalSolver(SimCLRSolver):
             images, labels = inputs.images, inputs.labels
 
             with autocast(enabled=self.args.fp16_precision):
-                aux = self.nets.encoder(images, freeze=True, penultimate=True)
+                aux = self.nets.encoder(images, freeze=True if not finetune else False, penultimate=True)
                 features_penul = aux['penultimate']
                 logits = self.nets.classifier(features_penul)
                 loss = self.criterion(logits, labels)
 
             self.optims.classifier.zero_grad()
+            if finetune: self.optims.encoder.zero_grad()
 
             scaler.scale(loss).backward()
 
             scaler.step(self.optims.classifier)
+            if finetune: scaler.step(self.optims.encoder)
             scaler.update()
 
             if (iter_counter + 1) % self.args.log_every_n_steps == 0:
@@ -327,7 +331,6 @@ class LinearEvalSolver(SimCLRSolver):
                     logging.info(msg)
                     print(msg)
 
-
         logging.info("Training has finished.")
         # save model checkpoints
         self._save_checkpoint(step=iter_counter+1, token=token)
@@ -344,10 +347,15 @@ class LinearEvalSolver(SimCLRSolver):
             self.contrastive_train()
             print('Finished pretraining. Move onto linear evaluation')
 
-        fetcher = InputFetcher(self.loaders.train_linear)
-        self.linear_evaluation(fetcher)
+        if not self.args.finetune:
+            fetcher = InputFetcher(self.loaders.train_linear)
+            self.linear_evaluation(fetcher)
+        else:
+            fetcher = InputFetcher(self.loaders.train_finetune)
+            self.linear_evaluation(fetcher, token='biased_finetune', finetune=True)
+
         if self.args.data != 'imagenet':
-            self.save_score_idx(self.loaders.train_linear)
+            self.save_score_idx(self.loaders.train_linear if not self.args.finetune else self.loaders.train_finetune)
         else:
             self.imagenet_save_score_idx(self.loaders.train_linear)
 

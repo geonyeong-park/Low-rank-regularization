@@ -2,10 +2,12 @@ from torch.utils.tensorboard import SummaryWriter
 from os.path import join as ospj
 import os
 import logging
+import numpy as np
 
 import torch
 from data_aug.data_loader import get_original_loader, get_val_loader, InputFetcher
 from training.LinearEvalSolver import LinearEvalSolver
+from models.build_models import FC, last_dim, num_classes
 
 
 class OversampleSolver(LinearEvalSolver):
@@ -61,20 +63,37 @@ class OversampleSolver(LinearEvalSolver):
             pth = ospj(self.args.checkpoint_dir, 'wrong_index_final.pth') # Ours (with ensemble trick)
 
         try:
+            """
+            if not self.args.finetune:
+                self._load_checkpoint(self.args.simclr_epochs, 'biased_simclr')
+            else:
+                self._load_checkpoint(self.args.linear_iters, 'biased_finetune')
+            """
             self._load_checkpoint(self.args.simclr_epochs, 'biased_simclr')
+
             assert os.path.exists(pth)
             print('Pretrained SimCLR ckpt exists. Move onto linear evaluation')
         except:
             raise ValueError('Either pretrained SimCLR or pseudo bias label does not exist')
 
         wrong_label = torch.load(pth)
-        print(f'Number of wrong/total samples: {wrong_label.sum()}/{wrong_label.size(0)}')
         upweight = torch.ones_like(wrong_label)
+        if self.args.finetune:
+            indices = np.load(ospj(self.args.checkpoint_dir, f'subset_indices_{self.args.finetune_ratio}.npy'))
+            for ind, _ in enumerate(upweight):
+                if ind not in indices:
+                    upweight[ind] = 0
+
+        print(f'Number of wrong/total samples: {wrong_label.sum()}/{upweight.sum()}. Finetuning: {self.args.finetune}')
+
         upweight[wrong_label == 1] = self.args.lambda_upweight
         upweight_loader = get_original_loader(self.args, sampling_weight=upweight, simclr_aug=False)
         upweight_fetcher = InputFetcher(upweight_loader)
 
-        self.linear_evaluation(upweight_fetcher, token='debiased_linear')
+        if not self.args.finetune:
+            self.linear_evaluation(upweight_fetcher, token='debiased_linear')
+        else:
+            self.linear_evaluation(upweight_fetcher, token='debiased_finetune', finetune=True)
 
     def evaluate(self):
         fetcher_val = self.loaders.val
