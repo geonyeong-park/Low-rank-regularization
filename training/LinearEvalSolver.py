@@ -20,6 +20,11 @@ class LinearEvalSolver(SimCLRSolver):
         super(LinearEvalSolver, self).__init__(args)
         self.writer = SummaryWriter(ospj(args.log_dir, 'linear_eval'))
 
+    def effective_rank(self, w):
+        s = w.cpu().svd(compute_uv=False)[1]
+        s_hat = s / s.sum()
+        return - (s_hat * s_hat.log()).sum()
+
     def validation(self, fetcher):
         self.nets.encoder.eval()
         self.nets.classifier.eval()
@@ -338,6 +343,23 @@ class LinearEvalSolver(SimCLRSolver):
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
 
+    def measure_rank(self, fetcher):
+        self.nets.encoder.eval()
+        self.nets.classifier.eval()
+
+        images, _, _, _ = next(iter(fetcher))
+        images = images.to(self.device)
+
+        with torch.no_grad():
+            aux = self.nets.encoder(images, penultimate=True)
+            features = aux['penultimate']
+            rank = self.effective_rank(features)
+        print(f'rank: {rank}')
+        torch.save(rank, ospj(self.args.log_dir, 'rank.pth'))
+
+        self.nets.encoder.train()
+        self.nets.classifier.train()
+
     def train(self):
         try:
             self._load_checkpoint(self.args.simclr_epochs, 'biased_simclr')
@@ -352,15 +374,20 @@ class LinearEvalSolver(SimCLRSolver):
             self.linear_evaluation(fetcher)
         else:
             fetcher = InputFetcher(self.loaders.train_finetune)
-            self.linear_evaluation(fetcher, token='biased_finetune', finetune=True)
+            # Set finetune=False. Still freeze encoder during bias-conflict sample identification
+            self.linear_evaluation(fetcher, token='biased_finetune', finetune=False)
 
         if self.args.data != 'imagenet':
             self.save_score_idx(self.loaders.train_linear if not self.args.finetune else self.loaders.train_finetune)
         else:
             self.imagenet_save_score_idx(self.loaders.train_linear)
 
+        fetcher_val = self.loaders.val
+        self.measure_rank(fetcher_val)
+
     def evaluate(self):
-        fetcher_val = self.loaders.test
+        fetcher_val = self.loaders.val
         self._load_checkpoint(self.args.linear_iters, 'biased_linear')
+        self.measure_rank(fetcher_val)
         total_acc, valid_attrwise_acc = self.validation(fetcher_val)
         self.report_validation(valid_attrwise_acc, total_acc, 0)

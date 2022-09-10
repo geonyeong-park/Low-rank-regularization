@@ -45,7 +45,7 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 
-    #parser.add_argument('--exp_name', default=None, help='additional exp tag. See setup()')
+    parser.add_argument('--exp_name', default=None, help='additional exp tag. See setup()')
 
     parser.add_argument('--mode', default='SimCLR', choices=['SimCLR', 'oversample', 'ERM'],
                         help='Vanilla SimCLR / Oversample failed samples for debiased linear evaluation / Vanilla ERM')

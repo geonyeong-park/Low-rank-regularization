@@ -20,12 +20,18 @@ def setup(args):
     elif args.data == 'stl10mnist':
         attr = args.num_unique_mnist
 
+    if args.exp_name is not None:
+        exp = f'{args.exp_name}_'
+    else:
+        exp = ''
+
+
     if args.mode != 'ERM':
         ckpt_tmp = args.checkpoint_dir
-        fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{attr}_{args.mode_CL}_lambda_{ld}_seed_{args.seed}')
-        fname = f'{args.data}_{attr}_{args.mode_CL}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
+        fname_template = lambda ld: ospj(ckpt_tmp, f'{args.data}_{exp}{attr}_{args.mode_CL}_lambda_{ld}_seed_{args.seed}')
+        fname = f'{args.data}_{exp}{attr}_{args.mode_CL}_lambda_{args.lambda_offdiag}_seed_{args.seed}'
     else:
-        fname = f'{args.data}_{attr}_ERM_seed_{args.seed}'
+        fname = f'{args.data}_{exp}{attr}_ERM_seed_{args.seed}'
 
     args.log_dir = ospj(args.log_dir, fname)
     os.makedirs(args.log_dir, exist_ok=True)

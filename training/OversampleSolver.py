@@ -46,7 +46,7 @@ class OversampleSolver(LinearEvalSolver):
         3. Run debiased linear evaluation
         """
 
-        assert self.args.lambda_offdiag == 0 # Assert the main encoder is pretrained w/o rank regularization
+        #assert self.args.lambda_offdiag == 0 # Assert the main encoder is pretrained w/o rank regularization
 
         if self.args.oversample_pth is not None: # Only for manual pseudo_label experiments
             pth = self.args.oversample_pth
