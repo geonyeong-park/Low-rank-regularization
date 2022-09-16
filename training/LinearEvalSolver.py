@@ -148,8 +148,12 @@ class LinearEvalSolver(SimCLRSolver):
         self.pseudo_label_precision_recall(wrong_idx, debias_idx)
 
     def pseudo_label_precision_recall(self, wrong_label, debias_label):
+        if self.args.data == 'celebA':
+            debias_label = 1 - debias_label
+
         print(torch.sum(wrong_label))
         print(torch.sum(debias_label))
+
         spur_precision = torch.sum(
                 (wrong_label == 1) & (debias_label == 1)
             ) / torch.sum(wrong_label)
@@ -375,7 +379,7 @@ class LinearEvalSolver(SimCLRSolver):
         else:
             fetcher = InputFetcher(self.loaders.train_finetune)
             # Set finetune=False. Still freeze encoder during bias-conflict sample identification
-            self.linear_evaluation(fetcher, token='biased_finetune', finetune=False)
+            self.linear_evaluation(fetcher, token='biased_finetune', finetune=False if not self.args.finetune_only_once else True)
 
         if self.args.data != 'imagenet':
             self.save_score_idx(self.loaders.train_linear if not self.args.finetune else self.loaders.train_finetune)

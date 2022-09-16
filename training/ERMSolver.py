@@ -57,6 +57,8 @@ class ERMSolver(nn.Module):
 
         # BUILD LOADERS
         self.loaders = Munch(train=get_original_loader(args, simclr_aug=False))
+        if args.finetune:
+            self.loaders.train_finetune = get_original_loader(args, simclr_aug=False, finetune=True, finetune_ratio=args.finetune_ratio)
 
         if args.data != 'imagenet':
             self.loaders.val = get_val_loader(args, split='valid')
@@ -224,8 +226,13 @@ class ERMSolver(nn.Module):
         n_iter = 0
         logging.info(f"Start ERM training for {self.args.ERM_epochs} epochs.")
 
+        if self.args.finetune:
+            loader = self.loaders.train_finetune
+        else:
+            loader = self.loaders.train
+
         for epoch_counter in range(self.args.ERM_epochs):
-            for images, labels, _, _ in tqdm(self.loaders.train):
+            for images, labels, _, _ in tqdm(loader):
                 images = images.to(self.args.device)
                 labels = labels.to(self.args.device)
 
@@ -248,7 +255,7 @@ class ERMSolver(nn.Module):
 
                 n_iter += 1
 
-                self.scheduler.classifier.step()
+                #self.scheduler.classifier.step()
 
             msg = f"Epoch: {epoch_counter}\tLR: {self.scheduler.classifier.get_lr()[0]}\tLoss: {loss}\tTop1 accuracy: {top1[0]}"
             logging.info(msg)

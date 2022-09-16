@@ -53,6 +53,8 @@ if __name__ == "__main__":
     parser.add_argument('--phase', default='train', choices=['train', 'test'], type=str)
     parser.add_argument('--finetune', action='store_true',
                         help='If true, do finetuning. Else, do linear evaluation.')
+    parser.add_argument('--finetune_only_once', action='store_true',
+                        help='If true, do finetuning. Else, do linear evaluation.')
 
     # data
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
