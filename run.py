@@ -76,6 +76,8 @@ if __name__ == "__main__":
     # train
     parser.add_argument('--temperature', default=0.07, type=float,
                         help='softmax temperature (default: 0.07)')
+    parser.add_argument('--beta', default=0, type=float,
+                        help='beta (default: 0.0)')
     parser.add_argument('--simclr_epochs', default=100, type=int, metavar='N',
                         help='number of simclr pretraining epochs to run')
     parser.add_argument('--ERM_epochs', default=30, type=int, metavar='N',
