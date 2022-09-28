@@ -3,14 +3,19 @@
 seed=(500 600 700 800)
 
 for s in ${seed[@]}; do
-    #CUDA_VISIBLE_DEVICES=$1 python run.py --data UTKFace --bias_attr age --target_attr gender --mode_CL SimCLR \
-    #    --seed $s --lambda_offdiag 0. --simclr_epochs 100 --linear_iters 3000 \
-    #    --exp_name "tau5." \
-    #    --data_dir /home/pky/research_new/dataset
+    CUDA_VISIBLE_DEVICES=$1 python run.py --data UTKFace --bias_attr age --target_attr gender --mode_CL SimCLR \
+        --seed $s --lambda_offdiag 0. --simclr_epochs 100 --linear_iters 3000 \
+        --exp_name "tau0.07" \
+        --data_dir /home/pky/research_new/dataset --temperature 0.07
 
     CUDA_VISIBLE_DEVICES=$1 python run.py --data UTKFace --bias_attr age --target_attr gender --mode_CL SimCLR \
         --seed $s --lambda_offdiag 0. --simclr_epochs 100 --linear_iters 3000 \
-        --mode oversample --lambda_upweight 10 --exp_name "tau0.07" \
+        --exp_name "tau5." \
+        --data_dir /home/pky/research_new/dataset --temperature 5.
+
+    CUDA_VISIBLE_DEVICES=$1 python run.py --data UTKFace --bias_attr age --target_attr gender --mode_CL SimCLR \
+        --seed $s --lambda_offdiag 0. --simclr_epochs 100 --linear_iters 3000 \
+        --mode oversample --lambda_upweight 6 --exp_name "tau0.07" \
         --data_dir /home/pky/research_new/dataset \
         --oversample_pth "expr/checkpoint/UTKFace_tau5._age_SimCLR_lambda_0.0_seed_$s/wrong_idx.pth"
 done
