@@ -79,6 +79,8 @@ class LinearEvalSolver(SimCLRSolver):
             self.writer.add_scalar(key, acc, global_step=step)
         log = f"(Validation) Iteration [{step}], "
         log += ' '.join(['%s: [%.4f]' % (key, value) for key, value in all_acc.items()])
+        log += '\n'
+        log += ' '.join(['%s: [%.4f]' % (ind, value) for ind, value in enumerate(valid_attrwise_acc.view(-1))])
         logging.info(log)
         print(log)
 

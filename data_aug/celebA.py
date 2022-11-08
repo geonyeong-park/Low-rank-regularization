@@ -4,6 +4,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import pandas as pd
+import os
+from PIL import Image
+
 from data_aug.view_generator import ContrastiveLearningViewGenerator
 from torch.utils.data.dataloader import DataLoader
 from torchvision import transforms as T
@@ -25,7 +29,44 @@ class BiasedCelebASplit:
         self.bias_idx = 20 # Gender
 
         if target_attr == 'blonde':
-            self.target_idx = 9
+            # Read in attributes
+            self.attrs_df = pd.read_csv(os.path.join(root, "metadata.csv"))
+
+            # Split out filenames and attribute names
+            self.data_dir = os.path.join(root, "celeba", "img_align_celeba")
+            self.filename_array = self.attrs_df["image_id"].values
+            self.split_array = self.attrs_df["split"].values
+
+
+            self.attrs_df = self.attrs_df.drop(labels="image_id", axis="columns")
+            self.attr_names = self.attrs_df.columns.copy()
+
+            # Then cast attributes to numpy array and set them to 0 and 1
+            # (originally, they're -1 and 1)
+            self.attrs_df = self.attrs_df.values
+            self.attrs_df[self.attrs_df == -1] = 0
+
+            # Get the y values
+            target_idx = self.attr_idx('Blond_Hair')
+            self.targets = self.attrs_df[:, target_idx]
+
+            confounder_idx = self.attr_idx('Male')
+            self.biases = self.attrs_df[:, confounder_idx]
+
+            #self.target_idx = 9
+
+            self.split_token = 0 if split == "train" else 2
+            mask = self.split_array == self.split_token
+
+            num_split = np.sum(mask)
+            indices = np.where(mask)[0]
+
+            self.filename_array = self.filename_array[indices]
+            self.targets = torch.tensor(self.targets[indices]).long()
+            self.biases = torch.tensor(self.biases[indices]).long()
+            self.indices = indices
+
+            """
             if split in ['train', 'train_valid']:
                 save_path = Path(root) / 'pickles' / 'blonde'
                 if save_path.is_dir():
@@ -40,6 +81,7 @@ class BiasedCelebASplit:
             else:
                 self.attr = self.celeba.attr
                 self.indices = torch.arange(len(self.celeba))
+            """
 
         elif target_attr == 'makeup':
             self.target_idx = 18
@@ -48,33 +90,38 @@ class BiasedCelebASplit:
         else:
             raise AttributeError
 
-        if split in ['train', 'train_valid']:
-            save_path = Path(f'clusters/celeba_rand_indices_{target_attr}.pkl')
-            if not save_path.exists():
-                rand_indices = torch.randperm(len(self.indices))
-                pickle.dump(rand_indices, open(save_path, 'wb'))
-            else:
-                rand_indices = pickle.load(open(save_path, 'rb'))
+        if target_attr != 'blonde':
+            if split in ['train', 'train_valid']:
+                save_path = Path(f'clusters/celeba_rand_indices_{target_attr}.pkl')
+                if not save_path.exists():
+                    rand_indices = torch.randperm(len(self.indices))
+                    pickle.dump(rand_indices, open(save_path, 'wb'))
+                else:
+                    rand_indices = pickle.load(open(save_path, 'rb'))
 
-            num_total = len(rand_indices)
-            num_train = int(0.8 * num_total)
+                num_total = len(rand_indices)
+                num_train = int(0.8 * num_total)
 
-            if split == 'train':
-                indices = rand_indices[:num_train]
-            elif split == 'train_valid':
-                indices = rand_indices[num_train:]
+                if split == 'train':
+                    indices = rand_indices[:num_train]
+                elif split == 'train_valid':
+                    indices = rand_indices[num_train:]
 
-            self.indices = self.indices[indices]
-            self.attr = self.attr[indices]
+                self.indices = self.indices[indices]
+                self.attr = self.attr[indices]
 
-        self.targets = self.attr[:, self.target_idx]
-        self.biases = self.attr[:, self.bias_idx]
+            self.targets = self.attr[:, self.target_idx]
+            self.biases = self.attr[:, self.bias_idx]
 
         self.confusion_matrix_org, self.confusion_matrix, self.confusion_matrix_by = get_confusion_matrix(num_classes=2,
                                                                                                           targets=self.targets,
                                                                                                           biases=self.biases)
 
         print(f'Use BiasedCelebASplit \n target_attr: {target_attr} split: {split} \n {self.confusion_matrix_org}')
+
+
+    def attr_idx(self, attr_name):
+        return self.attr_names.get_loc(attr_name)
 
     def build_blonde(self):
         biases = self.celeba.attr[:, self.bias_idx]
@@ -86,7 +133,14 @@ class BiasedCelebASplit:
         return indices
 
     def __getitem__(self, index):
-        img, _ = self.celeba.__getitem__(self.indices[index])
+        if self.target_attr != 'blonde':
+            img, _ = self.celeba.__getitem__(self.indices[index])
+        else:
+            img_filename = os.path.join(self.data_dir,
+                                        self.filename_array[index])
+            img = Image.open(img_filename)
+            img = self.transform(img)
+
         target, bias = self.targets[index], self.biases[index]
         return img, target, bias, index
 
@@ -112,21 +166,17 @@ def get_celeba(root, target_attr='blonde', split='train', simclr_aug=True,
             ])
 
         else:
-            transform = T.Compose(
-                [
-                    T.Resize((img_size, img_size)),
-                    T.RandomHorizontalFlip(),
-                    T.ToTensor(),
-                    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                ]
-            )
-    else:
-        transform = T.Compose(
-            [
+            transform = T.Compose([
                 T.Resize((img_size, img_size)),
+                T.RandomHorizontalFlip(),
                 T.ToTensor(),
                 T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-            ]
+            ])
+    else:
+        transform = T.Compose([
+            T.Resize((img_size, img_size)),
+            T.ToTensor(),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]
         )
 
     if simclr_aug:
