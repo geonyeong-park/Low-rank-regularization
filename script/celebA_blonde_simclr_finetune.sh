@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seed=(104 103 102 101)
+seed=(14 13 12 11)
 
 
 for s in ${seed[@]}; do
@@ -8,18 +8,18 @@ for s in ${seed[@]}; do
     CUDA_VISIBLE_DEVICES=$1 python run.py --data celebA --target_attr blonde --bias_attr gender --mode_CL SimCLR \
         --lambda_offdiag 0. --batch_size 128 --simclr_epochs 20 --linear_iters 5000 \
         --data_dir /home/pky/research_new/dataset \
-        --seed $s --finetune --lr_clf 0.0001 --lr_simclr 0.0001
+        --seed $s --finetune
 
     CUDA_VISIBLE_DEVICES=$1 python run.py --data celebA --target_attr blonde --bias_attr gender --mode_CL SimCLR \
         --lambda_offdiag 0.03 --batch_size 128 --simclr_epochs 20 --linear_iters 5000 \
         --data_dir /home/pky/research_new/dataset \
-        --seed $s --finetune --lr_clf 0.0001 --lr_simclr 0.0001
+        --seed $s --finetune
 
     CUDA_VISIBLE_DEVICES=$1 python run.py --data celebA --target_attr blonde --bias_attr gender --mode_CL SimCLR \
-        --lambda_offdiag 0. --batch_size 128 --simclr_epochs 20 --linear_iters 5000 \
+        --lambda_offdiag 0. --batch_size 128 --simclr_epochs 20 --linear_iters 10000 \
         --data_dir /home/pky/research_new/dataset \
         --seed $s --finetune \
-        --mode oversample --lambda_upweight 15 \
+        --mode oversample --lambda_upweight 30 \
         --oversample_pth "expr/checkpoint/celebA_blonde_SimCLR_lambda_0.03_seed_$s/wrong_idx.pth" \
         --lr_clf 0.0001 --lr_simclr 0.0001 \
         --optimizer SGD --wd 0.1

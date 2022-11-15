@@ -4,6 +4,7 @@ from munch import Munch
 from models.resnet_simclr import ResNet18, ResNet50
 import torchvision.models as models
 from models.resnet_simclr import modify_last_layer
+from models.simple_cnn import ConvNet
 
 num_classes = {
     'celebA': 2,
@@ -15,17 +16,19 @@ num_classes = {
 
 arch = {
     'resnet18': ResNet18,
-    'resnet50': ResNet50
+    'resnet50': ResNet50,
+    'conv': ConvNet
 }
 
 arch_ERM = {
     'resnet18': models.resnet18,
-    'resnet50': models.resnet50
+    'resnet50': models.resnet50,
 }
 
 last_dim = {
     'resnet18': 512,
-    'resnet50': 2048
+    'resnet50': 2048,
+    'conv': 256,
 }
 
 

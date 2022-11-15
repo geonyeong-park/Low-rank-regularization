@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     # arch
     parser.add_argument('--arch', default='resnet18',
-                        choices=['resnet18', 'resnet50'])
+                        choices=['resnet18', 'resnet50', 'conv'])
     parser.add_argument('--simclr_dim', default=128, type=int,
                         help='feature dimension (default: 128)')
 

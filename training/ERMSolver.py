@@ -231,10 +231,14 @@ class ERMSolver(nn.Module):
         else:
             loader = self.loaders.train
 
+        i = 0
         for epoch_counter in range(self.args.ERM_epochs):
             for images, labels, _, _ in tqdm(loader):
                 images = images.to(self.args.device)
                 labels = labels.to(self.args.device)
+
+                for ind, img in enumerate(images):
+                    torchvision.utils.save_image(img, f'recon/{i}iter_{labels[0]}_{labels[1]}.png', normalize=True)
 
                 with autocast(enabled=self.args.fp16_precision):
                     logits = self.nets.classifier(images)
