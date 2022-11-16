@@ -30,7 +30,7 @@ class BiasedCelebASplit:
 
         if target_attr == 'blonde':
             # Read in attributes
-            self.attrs_df = pd.read_csv(os.path.join(root, "metadata.csv"))
+            self.attrs_df = pd.read_csv(os.path.join(root, "metadata_blonde_subsampled.csv"))
 
             # Split out filenames and attribute names
             self.data_dir = os.path.join(root, "celeba", "img_align_celeba")
