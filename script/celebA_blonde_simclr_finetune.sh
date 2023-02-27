@@ -20,7 +20,7 @@ for s in ${seed[@]}; do
         --lambda_offdiag 0. --batch_size 128 --simclr_epochs 20 --linear_iters 10000 \
         --data_dir /home/pky/research_new/dataset \
         --seed $s --finetune \
-        --mode oversample --lambda_upweight 15 \
+        --mode oversample --lambda_upweight 10 \
         --oversample_pth "expr/checkpoint/celebA_blonde_SimCLR_lambda_0.03_seed_$s/wrong_idx.pth" \
         --lr_clf 0.0001 --lr_simclr 0.0001 \
         --optimizer SGD --wd 0.1
