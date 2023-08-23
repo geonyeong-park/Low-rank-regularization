@@ -60,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
                         help='path to dataset')
     parser.add_argument('--data', default='UTKFace',
-                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq', 'stl10mnist', 'imagenet'])
+                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq', 'stl10mnist', 'imagenet', 'MIMIC_CXR'])
     parser.add_argument('--bias_attr', default='age', choices=['race', 'age', 'gender'],
                         type=str, help='For UTKFace')
     parser.add_argument('--target_attr', default='blonde', choices=['blonde', 'makeup', 'race', 'gender'],

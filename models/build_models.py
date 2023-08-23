@@ -11,7 +11,8 @@ num_classes = {
     'UTKFace': 2,
     'bffhq': 2,
     'stl10mnist': 10,
-    'imagenet': 9
+    'imagenet': 9,
+    'MIMIC_CXR': 2
 }
 
 arch = {
