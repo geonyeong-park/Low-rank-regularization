@@ -79,6 +79,8 @@ class ERMSolver(nn.Module):
 
         self.writer = SummaryWriter(args.log_dir)
         self.criterion = torch.nn.CrossEntropyLoss()
+        self.gce = GeneralizedCELoss()
+        self.normalize = nn.BatchNorm1d(last_dim[args.arch], affine=False)
 
         self.to(self.device)
 
@@ -100,6 +102,7 @@ class ERMSolver(nn.Module):
             ckptio.load(step, token, which, return_fname)
 
     def validation(self, fetcher):
+        self.nets.encoder.eval()
         self.nets.classifier.eval()
 
         attrwise_acc_meter = MultiDimAverageMeter(self.attr_dims)
@@ -112,7 +115,9 @@ class ERMSolver(nn.Module):
             bias = bias.to(self.device)
 
             with torch.no_grad():
-                logit = self.nets.classifier(images)
+                aux = self.nets.encoder(images, simclr=False, penultimate=True)
+                features_penul = aux['penultimate']
+                logit = self.nets.classifier(features_penul)
                 pred = logit.data.max(1, keepdim=True)[1].squeeze(1)
                 correct = (pred == label).long()
 
@@ -128,6 +133,7 @@ class ERMSolver(nn.Module):
         total_acc = total_correct / float(total_num)
         accs = attrwise_acc_meter.get_mean()
 
+        self.nets.encoder.train()
         self.nets.classifier.train()
         return total_acc, accs
 
@@ -163,7 +169,9 @@ class ERMSolver(nn.Module):
                 for bias_label in bias_labels:
                     bias_label.to(self.device)
 
-                output = self.nets.classifier(images)
+                aux = self.nets.encoder(images, simclr=False, penultimate=True)
+                features_penul = aux['penultimate']
+                output = self.nets.classifier(features_penul)
 
                 batch_size = labels.size(0)
                 total += batch_size
@@ -218,6 +226,11 @@ class ERMSolver(nn.Module):
         n_correct = (predicted == labels).sum().item()
         return n_correct
 
+    def off_diagonal(self, x):
+        # return a flattened view of the off-diagonal elements of a square matrix
+        n, m = x.shape
+        assert n == m
+        return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
     def train(self):
         scaler = GradScaler(enabled=self.args.fp16_precision)
@@ -237,23 +250,34 @@ class ERMSolver(nn.Module):
                 images = images.to(self.args.device)
                 labels = labels.to(self.args.device)
 
-                for ind, img in enumerate(images):
-                    torchvision.utils.save_image(img, f'recon/{i}iter_{labels[0]}_{labels[1]}.png', normalize=True)
+                #for ind, img in enumerate(images):
+                #    torchvision.utils.save_image(img, f'recon/{i}iter_{labels[0]}_{labels[1]}.png', normalize=True)
 
-                with autocast(enabled=self.args.fp16_precision):
-                    logits = self.nets.classifier(images)
-                    loss = self.criterion(logits, labels)
+                aux = self.nets.encoder(images, simclr=False, penultimate=True)
+                features_penul = aux['penultimate']
+                c = self.normalize(features_penul).T @ self.normalize(features_penul)
+                c.div_(self.args.batch_size)
+                loss_offdiag = self.off_diagonal(c).pow_(2).sum() / features_penul.size(1) ** 2
+
+                logits = self.nets.classifier(features_penul)
+                loss_ce = self.criterion(logits, labels)
+                loss = loss_ce - self.args.lambda_offdiag * loss_offdiag
+                #loss = self.gce(logits, labels).mean()
 
                 self.optims.classifier.zero_grad()
+                self.optims.encoder.zero_grad()
 
                 scaler.scale(loss).backward()
 
                 scaler.step(self.optims.classifier)
+                scaler.step(self.optims.encoder)
                 scaler.update()
 
                 if n_iter % self.args.log_every_n_steps == 0:
                     top1 = accuracy(logits, labels, topk=(1, ))
                     self.writer.add_scalar('loss', loss, global_step=n_iter)
+                    self.writer.add_scalar('loss/ce', loss_ce, global_step=n_iter)
+                    self.writer.add_scalar('loss/rank_reg', loss_offdiag, global_step=n_iter)
                     self.writer.add_scalar('acc/top1', top1[0], global_step=n_iter)
                     self.writer.add_scalar('learning_rate', self.scheduler.classifier.get_lr()[0], global_step=n_iter)
 
@@ -292,3 +316,24 @@ class ERMSolver(nn.Module):
         self._load_checkpoint(self.args.ERM_epochs, 'biased_ERM')
         total_acc, valid_attrwise_acc = self.validation(fetcher_val)
         self.report_validation(valid_attrwise_acc, total_acc, 0)
+
+
+class GeneralizedCELoss(nn.Module):
+
+    def __init__(self, q=0.7):
+        super(GeneralizedCELoss, self).__init__()
+        self.q = q
+
+    def forward(self, logits, targets):
+        p = F.softmax(logits, dim=1)
+        if np.isnan(p.mean().item()):
+            raise NameError('GCE_p')
+        Yg = torch.gather(p, 1, torch.unsqueeze(targets, 1))
+        # modify gradient of cross entropy
+        loss_weight = (Yg.squeeze().detach()**self.q)*self.q
+        if np.isnan(Yg.mean().item()):
+            raise NameError('GCE_Yg')
+
+        loss = F.cross_entropy(logits, targets, reduction='none') * loss_weight
+
+        return loss
