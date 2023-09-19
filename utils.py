@@ -15,10 +15,10 @@ def setup(args):
         attr = args.bias_attr
     elif args.data == 'celebA':
         attr = args.target_attr
-    elif args.data == 'bffhq' or args.data == 'imagenet' or args.data == 'MIMIC_CXR':
-        attr = ''
     elif args.data == 'stl10mnist':
         attr = args.num_unique_mnist
+    else: #args.data == 'bffhq' or args.data == 'imagenet' or args.data == 'MIMIC_CXR' or args:
+        attr = ''
 
     if args.exp_name is not None:
         exp = f'{args.exp_name}_'

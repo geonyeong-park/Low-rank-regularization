@@ -57,6 +57,23 @@ class ERMSolver(nn.Module):
 
         # BUILD LOADERS
         self.loaders = Munch(train=get_original_loader(args, simclr_aug=False))
+
+        if self.args.lambda_upweight != 1 and self.args.oversample_pth is not None:
+            pth = self.args.oversample_pth
+            wrong_label = torch.load(pth)
+            upweight = torch.ones_like(wrong_label)
+            if self.args.finetune:
+                indices = np.load(ospj(self.args.checkpoint_dir, f'subset_indices_{self.args.finetune_ratio}.npy'))
+                for ind, _ in enumerate(upweight):
+                    if ind not in indices:
+                        upweight[ind] = 0
+
+            print(f'Number of wrong/total samples: {wrong_label.sum()}/{upweight.sum()}. Finetuning: {self.args.finetune}')
+
+            upweight[wrong_label == 1] = self.args.lambda_upweight
+            upweight_loader = get_original_loader(self.args, sampling_weight=upweight, simclr_aug=False)
+            self.loaders = Munch(train=upweight_loader)
+
         if args.finetune:
             self.loaders.train_finetune = get_original_loader(args, simclr_aug=False, finetune=True, finetune_ratio=args.finetune_ratio)
 
@@ -303,6 +320,9 @@ class ERMSolver(nn.Module):
                     msg += f"{key}: {val_acc}\t"
                 logging.info(msg)
                 print(msg)
+            
+            if self.args.oversample_pth is None:
+                self.save_score_idx(loader=get_original_loader(self.args, simclr_aug=False))
 
 
         logging.info("Training has finished.")
@@ -310,6 +330,92 @@ class ERMSolver(nn.Module):
         self._save_checkpoint(step=epoch_counter+1, token='biased_ERM')
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
+    
+    def save_score_idx(self, loader):
+        self.nets.encoder.eval()
+        self.nets.classifier.eval()
+        dataset = get_original_loader(self.args, return_dataset=True, simclr_aug=False)
+        num_data = len(dataset)
+
+        iterator = enumerate(loader)
+        score_idx = torch.zeros(num_data).to(self.device)
+        wrong_idx = torch.zeros(num_data).to(self.device)
+        debias_idx = torch.zeros(num_data).to(self.device)
+        total_num = 0
+
+        for _, (images, labels, bias_labels, idx) in iterator:
+            idx = idx.to(self.device)
+            labels = labels.to(self.device)
+            bias_labels = bias_labels.to(self.device)
+            images= images.to(self.device)
+
+            with torch.no_grad():
+                aux = self.nets.encoder(images, freeze=True, penultimate=True)
+                features_penul = aux['penultimate']
+                logits = self.nets.classifier(features_penul)
+
+                # bias score
+                bias_prob = nn.Softmax()(logits)[torch.arange(logits.size(0)), labels]
+                bias_score = 1 - bias_prob
+
+                # wrong
+                pred = logits.data.max(1, keepdim=True)[1].squeeze(1)
+                wrong = (pred != labels).long()
+
+                # true label
+                debiased = (labels != bias_labels).float()
+
+                for i, v in enumerate(idx):
+                    score_idx[v] = bias_score[i]
+                    debias_idx[v] = debiased[i]
+                    wrong_idx[v] = wrong[i]
+
+            total_num += labels.shape[0]
+
+        if not self.args.finetune: assert total_num == len(score_idx)
+        print(f'Average bias score: {score_idx.mean()}')
+
+        self.nets.encoder.train()
+        self.nets.classifier.train()
+        score_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'score_idx{x}.pth')
+        wrong_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'wrong_idx{x}.pth')
+        debias_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'debias_idx{x}.pth')
+
+        if self.args.data == 'stl10mnist':
+            score_idx_path = score_idx_path(f'_{self.args.bias_ratio}')
+            wrong_idx_path = wrong_idx_path(f'_{self.args.bias_ratio}')
+            debias_idx_path = debias_idx_path(f'_{self.args.bias_ratio}')
+        else:
+            score_idx_path = score_idx_path('')
+            wrong_idx_path = wrong_idx_path('')
+            debias_idx_path = debias_idx_path('')
+
+        torch.save(score_idx, score_idx_path)
+        torch.save(wrong_idx, wrong_idx_path)
+        torch.save(debias_idx, debias_idx_path)
+        print(f'Saved bias score in {score_idx_path}')
+        self.pseudo_label_precision_recall(wrong_idx, debias_idx)
+
+    def pseudo_label_precision_recall(self, wrong_label, debias_label):
+        if self.args.data == 'celebA':
+            debias_label = 1 - debias_label
+
+        print(torch.sum(wrong_label))
+        print(torch.sum(debias_label))
+
+        spur_precision = torch.sum(
+                (wrong_label == 1) & (debias_label == 1)
+            ) / torch.sum(wrong_label)
+        premsg = f"Spurious precision: {spur_precision}"
+        print(premsg)
+        logging.info(premsg)
+
+        spur_recall = torch.sum(
+                (wrong_label == 1) & (debias_label == 1)
+            ) / torch.sum(debias_label)
+        recmsg = f"Spurious recall: {spur_recall}"
+        print(recmsg)
+        logging.info(recmsg)
 
     def evaluate(self):
         fetcher_val = self.loaders.test

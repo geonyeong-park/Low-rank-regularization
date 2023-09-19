@@ -60,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', default='/home/user/research/dataset',
                         help='path to dataset')
     parser.add_argument('--data', default='UTKFace',
-                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq', 'stl10mnist', 'imagenet', 'MIMIC_CXR'])
+                        help='dataset name', choices=['UTKFace', 'celebA', 'bffhq', 'stl10mnist', 'imagenet', 'MIMIC_CXR', 'MIMIC_NIH'])
     parser.add_argument('--bias_attr', default='age', choices=['race', 'age', 'gender'],
                         type=str, help='For UTKFace')
     parser.add_argument('--target_attr', default='blonde', choices=['blonde', 'makeup', 'race', 'gender'],
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr_decay_offset', default=10, type=int, help='lr decay is not used in SimCLR')
     parser.add_argument('--lr_decay_gamma', default=0.1, type=float, help='For ERM')
     parser.add_argument('--lambda_offdiag', default=0.1, type=float, help='rank regularization')
-    parser.add_argument('--lambda_upweight', default=5, type=float, help='oversampling bias-free samples')
+    parser.add_argument('--lambda_upweight', default=1, type=float, help='oversampling bias-free samples')
     parser.add_argument('--lambda_list', default=None, nargs='+', type=float,
                         help='Lambda_offdiags for ensemble trick')
     parser.add_argument('--cutoff', default=0.75, type=float,

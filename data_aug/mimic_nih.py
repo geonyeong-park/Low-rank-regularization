@@ -11,7 +11,7 @@ import random
 from PIL import ImageFilter
 
 
-class MIMIC_Dataset(Dataset):
+class MIMICNIH_Dataset(Dataset):
     def __init__(self, root, split, transform, **kwargs):
         """
         mimic_path (str):
@@ -21,7 +21,7 @@ class MIMIC_Dataset(Dataset):
             'study_id', and 'label'.
         """
         self.mimic_path = root
-        whole_df = pd.read_csv(os.path.join(root, "mimic_bias_ratio_10%.csv"))
+        whole_df = pd.read_csv(os.path.join(root, "mimic_nih_bias_ratio_10%.csv"))
         self.df = whole_df[whole_df['split'] == split]
         self.transforms = transform
 
@@ -30,12 +30,7 @@ class MIMIC_Dataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-
-        subject_id = row['subject_id']
-        study_id = row['study_id']
-        dicom_id = row['dicom_id']
-
-        img_path = f"{self.mimic_path}/files/p{str(subject_id)[:2]}/p{subject_id}/s{study_id}/{dicom_id}.jpg"
+        img_path = row['path']
         img = Image.open(img_path).convert("RGB")
         img = self.transforms(img)
 
@@ -66,7 +61,7 @@ class GaussianBlur(object):
         )
 
 
-def get_mimic(root, split='train', simclr_aug=True, img_size=224):
+def get_mimic_nih(root, split='train', simclr_aug=True, img_size=224):
     logging.info(f'get_celeba - split:{split}, aug: {simclr_aug}')
 
     if split == 'train':
@@ -101,7 +96,7 @@ def get_mimic(root, split='train', simclr_aug=True, img_size=224):
     if simclr_aug:
         transform = ContrastiveLearningViewGenerator(transform)
 
-    dataset = MIMIC_Dataset(
+    dataset = MIMICNIH_Dataset(
         root=root,
         split=split,
         transform=transform
