@@ -20,9 +20,14 @@ class MIMICNIH_Dataset(Dataset):
             DataFrame with columns 'dicom_id', 'subject_id',
             'study_id', and 'label'.
         """
+        split_dict = {
+            'train': 0,
+            'valid': 1,
+            'test': 2
+        }
         self.mimic_path = root
         whole_df = pd.read_csv(os.path.join(root, "mimic_nih_bias_ratio_10%.csv"))
-        self.df = whole_df[whole_df['split'] == split]
+        self.df = whole_df[whole_df['split'] == split_dict[split]]
         self.transforms = transform
 
     def __len__(self):

@@ -8,17 +8,17 @@ for s in ${seed[@]}; do
     echo "seed: $s"
     CUDA_VISIBLE_DEVICES=$1 python run.py --data celebA --target_attr blonde --bias_attr gender --mode_CL SimCLR \
         --lambda_offdiag 0. --batch_size 128 --simclr_epochs 20 --linear_iters 5000 \
-        --data_dir /home/pky/research_new/dataset \
+        --data_dir /home/user/research/dataset \
         --seed $s --finetune
 
     CUDA_VISIBLE_DEVICES=$1 python run.py --data celebA --target_attr blonde --bias_attr gender --mode_CL SimCLR \
         --lambda_offdiag 0.03 --batch_size 128 --simclr_epochs 20 --linear_iters 5000 \
-        --data_dir /home/pky/research_new/dataset \
+        --data_dir /home/user/research/dataset \
         --seed $s --finetune
 
     CUDA_VISIBLE_DEVICES=$1 python run.py --data celebA --target_attr blonde --bias_attr gender --mode_CL SimCLR \
         --lambda_offdiag 0. --batch_size 128 --simclr_epochs 20 --linear_iters 10000 \
-        --data_dir /home/pky/research_new/dataset \
+        --data_dir /home/user/research/dataset \
         --seed $s --finetune \
         --mode oversample --lambda_upweight 10 \
         --oversample_pth "expr/checkpoint/celebA_blonde_SimCLR_lambda_0.03_seed_$s/wrong_idx.pth" \

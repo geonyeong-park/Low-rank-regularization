@@ -320,9 +320,9 @@ class ERMSolver(nn.Module):
                     msg += f"{key}: {val_acc}\t"
                 logging.info(msg)
                 print(msg)
-            
+
             if self.args.oversample_pth is None:
-                self.save_score_idx(loader=get_original_loader(self.args, simclr_aug=False))
+                self.save_score_idx(loader=get_original_loader(self.args, simclr_aug=False), epoch=epoch_counter)
 
 
         logging.info("Training has finished.")
@@ -330,8 +330,8 @@ class ERMSolver(nn.Module):
         self._save_checkpoint(step=epoch_counter+1, token='biased_ERM')
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
-    
-    def save_score_idx(self, loader):
+
+    def save_score_idx(self, loader, epoch=None):
         self.nets.encoder.eval()
         self.nets.classifier.eval()
         dataset = get_original_loader(self.args, return_dataset=True, simclr_aug=False)
@@ -385,10 +385,10 @@ class ERMSolver(nn.Module):
             score_idx_path = score_idx_path(f'_{self.args.bias_ratio}')
             wrong_idx_path = wrong_idx_path(f'_{self.args.bias_ratio}')
             debias_idx_path = debias_idx_path(f'_{self.args.bias_ratio}')
-        else:
-            score_idx_path = score_idx_path('')
-            wrong_idx_path = wrong_idx_path('')
-            debias_idx_path = debias_idx_path('')
+        elif epoch is not None:
+            score_idx_path = score_idx_path(epoch)
+            wrong_idx_path = wrong_idx_path(epoch)
+            debias_idx_path = debias_idx_path(epoch)
 
         torch.save(score_idx, score_idx_path)
         torch.save(wrong_idx, wrong_idx_path)
