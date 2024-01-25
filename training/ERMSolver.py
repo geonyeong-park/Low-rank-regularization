@@ -57,6 +57,23 @@ class ERMSolver(nn.Module):
 
         # BUILD LOADERS
         self.loaders = Munch(train=get_original_loader(args, simclr_aug=False))
+
+        if self.args.lambda_upweight != 1 and self.args.oversample_pth is not None:
+            pth = self.args.oversample_pth
+            wrong_label = torch.load(pth)
+            upweight = torch.ones_like(wrong_label)
+            if self.args.finetune:
+                indices = np.load(ospj(self.args.checkpoint_dir, f'subset_indices_{self.args.finetune_ratio}.npy'))
+                for ind, _ in enumerate(upweight):
+                    if ind not in indices:
+                        upweight[ind] = 0
+
+            print(f'Number of wrong/total samples: {wrong_label.sum()}/{upweight.sum()}. Finetuning: {self.args.finetune}')
+
+            upweight[wrong_label == 1] = self.args.lambda_upweight
+            upweight_loader = get_original_loader(self.args, sampling_weight=upweight, simclr_aug=False)
+            self.loaders = Munch(train=upweight_loader)
+
         if args.finetune:
             self.loaders.train_finetune = get_original_loader(args, simclr_aug=False, finetune=True, finetune_ratio=args.finetune_ratio)
 
@@ -79,6 +96,8 @@ class ERMSolver(nn.Module):
 
         self.writer = SummaryWriter(args.log_dir)
         self.criterion = torch.nn.CrossEntropyLoss()
+        self.gce = GeneralizedCELoss()
+        self.normalize = nn.BatchNorm1d(last_dim[args.arch], affine=False)
 
         self.to(self.device)
 
@@ -100,6 +119,7 @@ class ERMSolver(nn.Module):
             ckptio.load(step, token, which, return_fname)
 
     def validation(self, fetcher):
+        self.nets.encoder.eval()
         self.nets.classifier.eval()
 
         attrwise_acc_meter = MultiDimAverageMeter(self.attr_dims)
@@ -112,7 +132,9 @@ class ERMSolver(nn.Module):
             bias = bias.to(self.device)
 
             with torch.no_grad():
-                logit = self.nets.classifier(images)
+                aux = self.nets.encoder(images, simclr=False, penultimate=True)
+                features_penul = aux['penultimate']
+                logit = self.nets.classifier(features_penul)
                 pred = logit.data.max(1, keepdim=True)[1].squeeze(1)
                 correct = (pred == label).long()
 
@@ -128,6 +150,7 @@ class ERMSolver(nn.Module):
         total_acc = total_correct / float(total_num)
         accs = attrwise_acc_meter.get_mean()
 
+        self.nets.encoder.train()
         self.nets.classifier.train()
         return total_acc, accs
 
@@ -163,7 +186,9 @@ class ERMSolver(nn.Module):
                 for bias_label in bias_labels:
                     bias_label.to(self.device)
 
-                output = self.nets.classifier(images)
+                aux = self.nets.encoder(images, simclr=False, penultimate=True)
+                features_penul = aux['penultimate']
+                output = self.nets.classifier(features_penul)
 
                 batch_size = labels.size(0)
                 total += batch_size
@@ -218,6 +243,11 @@ class ERMSolver(nn.Module):
         n_correct = (predicted == labels).sum().item()
         return n_correct
 
+    def off_diagonal(self, x):
+        # return a flattened view of the off-diagonal elements of a square matrix
+        n, m = x.shape
+        assert n == m
+        return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
     def train(self):
         scaler = GradScaler(enabled=self.args.fp16_precision)
@@ -237,23 +267,34 @@ class ERMSolver(nn.Module):
                 images = images.to(self.args.device)
                 labels = labels.to(self.args.device)
 
-                for ind, img in enumerate(images):
-                    torchvision.utils.save_image(img, f'recon/{i}iter_{labels[0]}_{labels[1]}.png', normalize=True)
+                #for ind, img in enumerate(images):
+                #    torchvision.utils.save_image(img, f'recon/{i}iter_{labels[0]}_{labels[1]}.png', normalize=True)
 
-                with autocast(enabled=self.args.fp16_precision):
-                    logits = self.nets.classifier(images)
-                    loss = self.criterion(logits, labels)
+                aux = self.nets.encoder(images, simclr=False, penultimate=True)
+                features_penul = aux['penultimate']
+                c = self.normalize(features_penul).T @ self.normalize(features_penul)
+                c.div_(self.args.batch_size)
+                loss_offdiag = self.off_diagonal(c).pow_(2).sum() / features_penul.size(1) ** 2
+
+                logits = self.nets.classifier(features_penul)
+                loss_ce = self.criterion(logits, labels)
+                loss = loss_ce - self.args.lambda_offdiag * loss_offdiag
+                #loss = self.gce(logits, labels).mean()
 
                 self.optims.classifier.zero_grad()
+                self.optims.encoder.zero_grad()
 
                 scaler.scale(loss).backward()
 
                 scaler.step(self.optims.classifier)
+                scaler.step(self.optims.encoder)
                 scaler.update()
 
                 if n_iter % self.args.log_every_n_steps == 0:
                     top1 = accuracy(logits, labels, topk=(1, ))
                     self.writer.add_scalar('loss', loss, global_step=n_iter)
+                    self.writer.add_scalar('loss/ce', loss_ce, global_step=n_iter)
+                    self.writer.add_scalar('loss/rank_reg', loss_offdiag, global_step=n_iter)
                     self.writer.add_scalar('acc/top1', top1[0], global_step=n_iter)
                     self.writer.add_scalar('learning_rate', self.scheduler.classifier.get_lr()[0], global_step=n_iter)
 
@@ -280,6 +321,9 @@ class ERMSolver(nn.Module):
                 logging.info(msg)
                 print(msg)
 
+            if self.args.oversample_pth is None:
+                self.save_score_idx(loader=get_original_loader(self.args, simclr_aug=False), epoch=epoch_counter)
+
 
         logging.info("Training has finished.")
         # save model checkpoints
@@ -287,8 +331,115 @@ class ERMSolver(nn.Module):
 
         logging.info(f"Model checkpoint and metadata has been saved at {self.args.log_dir}.")
 
+    def save_score_idx(self, loader, epoch=None):
+        self.nets.encoder.eval()
+        self.nets.classifier.eval()
+        dataset = get_original_loader(self.args, return_dataset=True, simclr_aug=False)
+        num_data = len(dataset)
+
+        iterator = enumerate(loader)
+        score_idx = torch.zeros(num_data).to(self.device)
+        wrong_idx = torch.zeros(num_data).to(self.device)
+        debias_idx = torch.zeros(num_data).to(self.device)
+        total_num = 0
+
+        for _, (images, labels, bias_labels, idx) in iterator:
+            idx = idx.to(self.device)
+            labels = labels.to(self.device)
+            bias_labels = bias_labels.to(self.device)
+            images= images.to(self.device)
+
+            with torch.no_grad():
+                aux = self.nets.encoder(images, freeze=True, penultimate=True)
+                features_penul = aux['penultimate']
+                logits = self.nets.classifier(features_penul)
+
+                # bias score
+                bias_prob = nn.Softmax()(logits)[torch.arange(logits.size(0)), labels]
+                bias_score = 1 - bias_prob
+
+                # wrong
+                pred = logits.data.max(1, keepdim=True)[1].squeeze(1)
+                wrong = (pred != labels).long()
+
+                # true label
+                debiased = (labels != bias_labels).float()
+
+                for i, v in enumerate(idx):
+                    score_idx[v] = bias_score[i]
+                    debias_idx[v] = debiased[i]
+                    wrong_idx[v] = wrong[i]
+
+            total_num += labels.shape[0]
+
+        if not self.args.finetune: assert total_num == len(score_idx)
+        print(f'Average bias score: {score_idx.mean()}')
+
+        self.nets.encoder.train()
+        self.nets.classifier.train()
+        score_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'score_idx{x}.pth')
+        wrong_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'wrong_idx{x}.pth')
+        debias_idx_path = lambda x: ospj(self.args.checkpoint_dir, f'debias_idx{x}.pth')
+
+        if self.args.data == 'stl10mnist':
+            score_idx_path = score_idx_path(f'_{self.args.bias_ratio}')
+            wrong_idx_path = wrong_idx_path(f'_{self.args.bias_ratio}')
+            debias_idx_path = debias_idx_path(f'_{self.args.bias_ratio}')
+        elif epoch is not None:
+            score_idx_path = score_idx_path(epoch)
+            wrong_idx_path = wrong_idx_path(epoch)
+            debias_idx_path = debias_idx_path(epoch)
+
+        torch.save(score_idx, score_idx_path)
+        torch.save(wrong_idx, wrong_idx_path)
+        torch.save(debias_idx, debias_idx_path)
+        print(f'Saved bias score in {score_idx_path}')
+        self.pseudo_label_precision_recall(wrong_idx, debias_idx)
+
+    def pseudo_label_precision_recall(self, wrong_label, debias_label):
+        if self.args.data == 'celebA':
+            debias_label = 1 - debias_label
+
+        print(torch.sum(wrong_label))
+        print(torch.sum(debias_label))
+
+        spur_precision = torch.sum(
+                (wrong_label == 1) & (debias_label == 1)
+            ) / torch.sum(wrong_label)
+        premsg = f"Spurious precision: {spur_precision}"
+        print(premsg)
+        logging.info(premsg)
+
+        spur_recall = torch.sum(
+                (wrong_label == 1) & (debias_label == 1)
+            ) / torch.sum(debias_label)
+        recmsg = f"Spurious recall: {spur_recall}"
+        print(recmsg)
+        logging.info(recmsg)
+
     def evaluate(self):
         fetcher_val = self.loaders.test
         self._load_checkpoint(self.args.ERM_epochs, 'biased_ERM')
         total_acc, valid_attrwise_acc = self.validation(fetcher_val)
         self.report_validation(valid_attrwise_acc, total_acc, 0)
+
+
+class GeneralizedCELoss(nn.Module):
+
+    def __init__(self, q=0.7):
+        super(GeneralizedCELoss, self).__init__()
+        self.q = q
+
+    def forward(self, logits, targets):
+        p = F.softmax(logits, dim=1)
+        if np.isnan(p.mean().item()):
+            raise NameError('GCE_p')
+        Yg = torch.gather(p, 1, torch.unsqueeze(targets, 1))
+        # modify gradient of cross entropy
+        loss_weight = (Yg.squeeze().detach()**self.q)*self.q
+        if np.isnan(Yg.mean().item()):
+            raise NameError('GCE_Yg')
+
+        loss = F.cross_entropy(logits, targets, reduction='none') * loss_weight
+
+        return loss

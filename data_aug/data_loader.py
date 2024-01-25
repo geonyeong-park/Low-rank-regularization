@@ -10,6 +10,8 @@ from data_aug.celebA import get_celeba
 from data_aug.bffhq import get_bFFHQ
 from data_aug.merge_dataset import get_stl10mnist
 from data_aug.imagenet import get_imagenet
+from data_aug.mimic import get_mimic
+from data_aug.mimic_nih import get_mimic_nih
 
 from sklearn.model_selection import ShuffleSplit
 from torch.utils.data import Subset
@@ -31,6 +33,10 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
                                  num_unique_mnist=args.num_unique_mnist)
     elif dataset_name == 'imagenet':
         dataset = get_imagenet(ospj(args.data_dir, 'train'), train=True, simclr_aug=simclr_aug)
+    elif dataset_name == 'MIMIC_CXR':
+        dataset = get_mimic(args.data_dir, split='train', simclr_aug=simclr_aug)
+    elif dataset_name == 'MIMIC_NIH':
+        dataset = get_mimic_nih(args.data_dir, split='train', simclr_aug=simclr_aug)
     else:
         raise ValueError
 
@@ -97,6 +103,10 @@ def get_val_loader(args, split='valid'):
         else:
             dataset = get_imagenet(args.imagenetA_dir, train=False, simclr_aug=False,
                                    val_data='ImageNet-A')
+    elif dataset_name == 'MIMIC_CXR':
+        dataset = get_mimic(args.data_dir, split=split, simclr_aug=False)
+    elif dataset_name == 'MIMIC_NIH':
+        dataset = get_mimic_nih(args.data_dir, split='valid', simclr_aug=False)
     else:
         raise ValueError
 
