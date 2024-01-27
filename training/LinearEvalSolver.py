@@ -2,6 +2,7 @@ import os
 from os.path import join as ospj
 import logging
 import numpy as np
+import csv
 
 import torch
 import torchvision
@@ -366,6 +367,65 @@ class LinearEvalSolver(SimCLRSolver):
         self.nets.encoder.train()
         self.nets.classifier.train()
 
+    def measure_uncertainty(self, loader):
+        self.nets.encoder.eval()
+        self.nets.classifier.eval()
+
+        csv_data = []
+
+        iterator = enumerate(loader)
+        indices_file = ospj(self.args.checkpoint_dir, f'subset_indices_{self.args.finetune_ratio}.npy')
+
+        if os.path.exists(indices_file):
+            print(f'{indices_file} exists')
+            indices = np.load(indices_file)
+        else:
+            raise ValueError
+
+        for count, (images, labels, bias, idx) in iterator:
+            labels = labels.to(self.device)
+            images = images.to(self.device)
+            bias = bias.to(self.device)
+
+            with torch.no_grad():
+                aux = self.nets.encoder(images, penultimate=True)
+                features = aux['penultimate']
+                logit = self.nets.classifier(features)
+                softmax = torch.nn.Softmax(dim=-1)(logit)
+                entropy = - torch.sum(softmax * torch.log2(softmax), dim=-1)
+
+                pred = logit.data.max(1, keepdim=True)[1].squeeze(1)
+                correct = (pred == labels).long()
+
+                for i in range(images.shape[0]):
+                    csv_data.append(
+                        {
+                            'index': idx[i].data.cpu(),
+                            'label': labels[i].data.cpu(),
+                            'bias_label': bias[i].data.cpu(),
+                            'entropy': entropy[i].data.cpu(),
+                            'correct': correct[i].data.cpu(),
+                            'pretrained': True if idx[i].data.numpy() in indices else False
+                        }
+                    )
+                if count % (100) == 0: print(csv_data[-1])
+
+        # Specify the CSV file path
+        csv_file_path = ospj(self.args.checkpoint_dir, f'entropy.csv')
+
+        # Write data to the CSV file
+        with open(csv_file_path, 'w', newline='') as csvfile:
+            # Define the CSV writer
+            fieldnames = ['index', 'label', 'bias_label', 'entropy', 'correct', 'pretrained']
+            csv_writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            # Write the header
+            csv_writer.writeheader()
+
+            # Write the data
+            csv_writer.writerows(csv_data)
+        return
+
     def train(self):
         try:
             self._load_checkpoint(self.args.simclr_epochs, 'biased_simclr')
@@ -397,3 +457,8 @@ class LinearEvalSolver(SimCLRSolver):
         self.measure_rank(fetcher_val)
         total_acc, valid_attrwise_acc = self.validation(fetcher_val)
         self.report_validation(valid_attrwise_acc, total_acc, 0)
+
+    def evaluate_entropy(self):
+        fetcher_train = get_original_loader(self.args, simclr_aug=False, finetune=False, shuffle=False)
+        self._load_checkpoint(self.args.linear_iters, 'biased_finetune')
+        self.measure_uncertainty(fetcher_train)

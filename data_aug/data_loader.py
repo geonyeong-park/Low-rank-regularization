@@ -18,7 +18,7 @@ from torch.utils.data import Subset
 
 
 def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr_aug=True,
-                        finetune=False, finetune_ratio=0.):
+                        finetune=False, inverted_sampling=False, shuffle=True, return_num_data=False, finetune_ratio=0.):
     dataset_name = args.data
     if dataset_name == 'UTKFace':
         dataset = get_utk_face(args.data_dir, bias_attr=args.bias_attr, target_attr=args.target_attr, split='train',
@@ -47,6 +47,11 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
         if os.path.exists(indices_file):
             print(f'{indices_file} exists')
             indices = np.load(indices_file)
+            if inverted_sampling:
+                num_data = len(dataset)
+                total_indices = np.arange(num_data)
+                inverted_indices = [ind for ind in total_indices if ind not in indices]
+                indices = inverted_indices
             dataset = Subset(dataset, indices)
         else:
             num_data = len(dataset)
@@ -74,7 +79,7 @@ def get_original_loader(args, return_dataset=False, sampling_weight=None, simclr
         else:
             return data.DataLoader(dataset=dataset,
                                    batch_size=args.batch_size,
-                                   shuffle=True,
+                                   shuffle=shuffle,
                                    num_workers=args.num_workers,
                                    pin_memory=True,
                                    drop_last=simclr_aug)
