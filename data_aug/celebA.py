@@ -140,7 +140,6 @@ class BiasedCelebASplit:
                                         self.filename_array[index])
             img = Image.open(img_filename)
             img = self.transform(img)
-
         target, bias = self.targets[index], self.biases[index]
         return img, target, bias, index
 

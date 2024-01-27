@@ -31,7 +31,8 @@ def main():
         if args.phase == 'train':
             solver.train()
         else:
-            solver.evaluate()
+            #solver.evaluate()
+            solver.evaluate_entropy()
 
     elif args.mode == 'ERM':
         solver = ERMSolver(args)
